@@ -1,0 +1,31 @@
+{
+  "name": "pytradecraft",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@google/genai": "^1.0.1",
+    "@langchain/community": "^0.2.0",
+    "@langchain/core": "^0.3.17",
+    "@langchain/google-genai": "^0.1.12",
+    "@microsoft/signalr": "^8.0.7",
+    "@types/d3": "^7.4.3",
+    "d3": "^7.9.0",
+    "langchain": "^0.2.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.0",
+    "recharts": "^2.15.3",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "~5.7.2",
+    "vite": "^6.2.0"
+  }
+}

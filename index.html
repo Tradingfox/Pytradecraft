@@ -1,0 +1,64 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PyTradeCraft</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* Custom scrollbar for webkit browsers */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #2d3748; /* gray-800 */
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #4a5568; /* gray-600 */
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #718096; /* gray-500 */
+    }
+    /* Basic styling for Recharts text elements to inherit Tailwind's text color */
+    .recharts-text {
+      fill: currentColor;
+    }
+  </style>
+<script type="importmap">
+{
+  "imports": {
+    "react-router-dom": "https://esm.sh/react-router-dom@^7.6.0",
+    "react/": "https://esm.sh/react@^19.1.0/",
+    "react": "https://esm.sh/react@^19.1.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.0/",
+    "recharts": "https://esm.sh/recharts@^2.15.3",
+    "@google/genai": "https://esm.sh/@google/genai@^1.0.1",
+    "@microsoft/signalr": "https://esm.sh/@microsoft/signalr@^8.0.0"
+  }
+}
+</script>
+</head>
+<body class="bg-gray-900">
+  <div id="root"></div>
+  <script>
+    // Mock process.env.API_KEY for browser environment if not set by a build tool
+    // In a real build setup, this would be handled by Vite/CRA/etc.
+    // For the purpose of this generated code, we'll ensure it's defined if not present.
+    if (typeof process === 'undefined') {
+      window.process = { env: {} };
+    } else if (typeof process.env === 'undefined') {
+      process.env = {};
+    }
+    // IMPORTANT: This is a placeholder for development/testing.
+    // In a real scenario, API_KEY should be securely managed and set in the environment.
+    // Do NOT commit actual API keys to version control.
+    // For this exercise, if API_KEY is not set, Gemini service will show an alert.
+    // process.env.API_KEY = "YOUR_GEMINI_API_KEY_HERE_IF_NOT_SET_BY_ENVIRONMENT"; 
+  </script>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html><link rel="stylesheet" href="index.css">
+<script src="index.tsx" type="module"></script>

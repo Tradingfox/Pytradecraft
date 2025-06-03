@@ -1,0 +1,23 @@
+# Sequential Thinking Prompts
+- "Let's break this problem down into steps. First..."
+- "Before implementing, outline the logical sequence of operations needed for..."
+- "Walk through this solution step by step, considering..."
+- "What are the prerequisites before we proceed with..."
+
+# Memory Integration Prompts
+- "Referring to our previous discussion about..."
+- "Based on the context from earlier, how would you..."
+- "Remember the approach we used for... Can we apply it here?"
+- "Taking into account our established patterns in this project..."
+
+# Context Awareness Prompts
+- "Given the current project structure and MCP server configuration..."
+- "Considering our existing codebase conventions..."
+- "In the context of our trading algorithm requirements..."
+- "Taking into account our project's performance constraints..."
+
+# Combined Capability Prompts
+- "Let's use sequential thinking to break down this problem, while keeping in mind our previous solutions..."
+- "Based on our project context and memory of similar implementations..."
+- "Step by step, how can we implement this feature while maintaining consistency with..."
+- "Using our established patterns, let's think through each phase of..."

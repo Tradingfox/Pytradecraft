@@ -1,0 +1,6 @@
+{
+  "name": "PyTradeCraft",
+  "description": "A web application for developing, backtesting, and managing Python-based trading algorithms. Features a code editor with AI-assisted generation, mock backtesting with performance visualization, and a professional trading interface inspired by platforms like QuantConnect.",
+  "requestFramePermissions": [],
+  "prompt": ""
+}
