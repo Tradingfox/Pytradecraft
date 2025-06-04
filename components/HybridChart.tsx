@@ -208,7 +208,7 @@ const HybridChart: React.FC<HybridChartProps> = ({
   /**
    * Process a real-time quote into a candlestick bar
    */  
-  const processQuote = useCallback((quote: QuoteData) => {
+  const processQuote = useCallback((quote: QuoteData, currentBarParam: HistoricalBar | null, lastBarTimeParam: Date | null) => {
     // Skip if we don't have a valid price
     if (!quote.bidPrice && !quote.askPrice && !quote.lastPrice) return;
 
@@ -218,15 +218,15 @@ const HybridChart: React.FC<HybridChartProps> = ({
     // Skip if no valid price
     if (!price) return;
 
-    const now = new Date();
+    const now = new Date(); // Quote timestamp could be used if available and accurate: new Date(quote.timestamp)
     const intervalMs = getTimeframeMs();
     const barStartTime = new Date(Math.floor(now.getTime() / intervalMs) * intervalMs);
 
     // If we don't have a current bar or this is a new bar period
-    if (!currentBarRef.current || !lastBarTimeRef.current || barStartTime.getTime() > lastBarTimeRef.current.getTime()) {
+    if (!currentBarParam || !lastBarTimeParam || barStartTime.getTime() > lastBarTimeParam.getTime()) {
       // Save the current bar if it exists
-      if (currentBarRef.current) {
-        setRealtimeBars(prev => [...prev, currentBarRef.current!]);
+      if (currentBarParam) {
+        setRealtimeBars(prev => [...prev, currentBarParam]);
       }
         // Create a new bar
       const newBar: HistoricalBar = {
@@ -242,19 +242,19 @@ const HybridChart: React.FC<HybridChartProps> = ({
       setLastBarTime(barStartTime);
 
     } else {
-      // Update the current bar
-      setCurrentBar(prev => {
-        if (!prev) return null;
-          return {
-          ...prev,
-          high: Math.max(prev.high, price),
-          low: Math.min(prev.low, price),
+      // Update the current bar by creating a new object
+      setCurrentBar(prevCurrentBar => {
+        if (!prevCurrentBar) return null; // Should not happen if currentBarParam was not null
+        return {
+          ...prevCurrentBar,
+          high: Math.max(prevCurrentBar.high, price),
+          low: Math.min(prevCurrentBar.low, price),
           close: price,
-          volume: (prev.volume || 0) + 1 // Increment volume by 1 for each update
+          volume: (prevCurrentBar.volume || 0) + 1 // Increment volume by 1 for each update
         };
       });
     }
-  }, [getTimeframeMs]); // Remove currentBar and lastBarTime from dependencies
+  }, [getTimeframeMs]);
 
   /**
    * Load historical chart data
@@ -786,9 +786,9 @@ const HybridChart: React.FC<HybridChartProps> = ({
     if (!quote) return;
 
     // Process quote into bars
-    processQuote(quote);
+    processQuote(quote, currentBar, lastBarTime);
 
-  }, [isStreaming, selectedContract, liveQuotes, processQuote]);
+  }, [isStreaming, selectedContract, liveQuotes, processQuote, currentBar, lastBarTime]);
 
   /**
    * Draw chart when data or settings change
