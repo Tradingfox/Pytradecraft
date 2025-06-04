@@ -3,15 +3,17 @@ import { useTradingContext } from '../contexts/TradingContext';
 import Chart from '../components/Chart';
 import HybridChart from '../components/HybridChart';
 import SectionPanel from '../components/SectionPanel';
+import ContractSearchInput from '../components/ContractSearchInput'; // Import the new component
 import { 
   searchTrades, 
   searchOpenPositions
 } from '../services/tradingApiService';
-import { Trade, Position } from '../types';
+import { Trade, Position, Contract } from '../types'; // Add Contract type
 
 const ChartsView: React.FC = () => {
   const { selectedBroker, sessionToken, selectedAccountId } = useTradingContext();
-  const [selectedContract, setSelectedContract] = useState<string>('');
+  const [selectedContractId, setSelectedContractId] = useState<string>(''); // Renamed for clarity
+  const [selectedContractFull, setSelectedContractFull] = useState<Contract | null>(null); // To store the full contract object
   const [trades, setTrades] = useState<Trade[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [isLoadingTrades, setIsLoadingTrades] = useState(false);
@@ -26,7 +28,9 @@ const ChartsView: React.FC = () => {
 
   // Load trades and positions for the selected contract
   const loadTradingData = async () => {
-    if (!selectedBroker || !sessionToken || !selectedAccountId || !selectedContract) {
+    if (!selectedBroker || !sessionToken || !selectedAccountId || !selectedContractId) { // Use selectedContractId
+      setTrades([]);
+      setPositions([]);
       return;
     }
 
@@ -35,12 +39,14 @@ const ChartsView: React.FC = () => {
       // Load recent trades for the contract
       const tradesResponse = await searchTrades(selectedBroker, sessionToken, {
         accountId: selectedAccountId,
-        contractId: selectedContract,
+        contractId: selectedContractId, // Use selectedContractId
         limit: 100
       });
 
       if (tradesResponse.success && tradesResponse.trades) {
         setTrades(tradesResponse.trades);
+      } else {
+        setTrades([]);
       }
 
       // Load open positions
@@ -51,22 +57,30 @@ const ChartsView: React.FC = () => {
       if (positionsResponse.success && positionsResponse.positions) {
         // Filter positions for the selected contract
         const contractPositions = positionsResponse.positions.filter(
-          p => p.contractId === selectedContract
+          p => p.contractId === selectedContractId // Use selectedContractId
         );
         setPositions(contractPositions);
+      } else {
+        setPositions([]);
       }
     } catch (error) {
       console.error('Failed to load trading data:', error);
+      setTrades([]);
+      setPositions([]);
     } finally {
       setIsLoadingTrades(false);
     }
   };
 
   useEffect(() => {
-    if (selectedContract) {
+    if (selectedContractId) { // Depend on selectedContractId
       loadTradingData();
+    } else {
+      // Clear data if no contract is selected
+      setTrades([]);
+      setPositions([]);
     }
-  }, [selectedContract, selectedBroker, sessionToken, selectedAccountId]);
+  }, [selectedContractId, selectedBroker, sessionToken, selectedAccountId]);
   
   // Update chart mode when broker changes
   useEffect(() => {
@@ -88,23 +102,27 @@ const ChartsView: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
         <h1 className="text-2xl font-bold text-gray-200">Advanced Charting</h1>
-        <div className="flex gap-2">
-          <select 
-            className="bg-gray-700 text-gray-200 px-3 py-1.5 rounded border border-gray-600"
-            value={selectedContract}
-            onChange={(e) => setSelectedContract(e.target.value)}
-          >
-            <option value="">Select Contract</option>
-            <option value="ES">ES - E-mini S&P 500</option>
-            <option value="NQ">NQ - E-mini NASDAQ</option>
-            <option value="YM">YM - E-mini Dow</option>
-            <option value="CL">CL - Crude Oil</option>
-          </select>
+        <div className="w-full md:w-auto md:min-w-[300px]"> {/* Ensure it has enough width */}
+          <ContractSearchInput
+            selectedBroker={selectedBroker}
+            onContractSelect={(contract: Contract) => {
+              setSelectedContractId(contract.id); // Keep this for triggering data load
+              setSelectedContractFull(contract); // Store full contract object if needed for display
+              console.log('Contract selected in ChartsView:', contract);
+            }}
+            placeholder="Search contract for chart..."
+            enableAutoSearch={true}
+            showQuickSearch={true}
+          />
         </div>
       </div>
-
+      {selectedContractFull && (
+        <div className="mt-2 text-sm text-gray-400">
+          Displaying chart for: <span className="font-semibold text-sky-400">{selectedContractFull.name} ({selectedContractFull.description})</span>
+        </div>
+      )}
       {/* Chart Mode Selector */}
       <SectionPanel title="Chart Engine Selection" className="bg-gray-800 border-gray-700">
         <div className="flex gap-4 mb-4">
@@ -136,9 +154,9 @@ const ChartsView: React.FC = () => {
       )}
 
       {/* Trading Data Summary */}
-      {selectedContract && (
+      {selectedContractId && ( // Use selectedContractId
         <div className="bg-gray-800 rounded-lg p-4">
-          <h3 className="text-lg font-medium mb-2">Trading Data</h3>
+          <h3 className="text-lg font-medium mb-2">Trading Data for {selectedContractFull?.name || selectedContractId}</h3>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <span className="text-gray-400">Positions:</span> {positions.length}
@@ -153,14 +171,14 @@ const ChartsView: React.FC = () => {
       {/* Main Chart Component */}
       {chartMode === 'standard' ? (
         <Chart
-          contractId={selectedContract}
+          contractId={selectedContractId} // Use selectedContractId
           height={chartHeight}
           showDOM={showDOM}
           showToolbar={showToolbar}
         />
       ) : (
         <HybridChart
-          contractId={selectedContract}
+          contractId={selectedContractId} // Use selectedContractId
           height={chartHeight}
         />
       )}

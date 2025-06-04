@@ -7,15 +7,34 @@ import { GEMINI_API_KEY_INFO_URL } from '../constants.tsx';
 const SettingsView: React.FC = () => {
   const { apiKeyStatus, geminiApiKey: contextGeminiApiKey, setGeminiApiKey: setContextGeminiApiKey, checkApiKey } = useAppContext();
   const [geminiApiKey, setGeminiApiKey] = useState(contextGeminiApiKey || '');
+  const [saveStatusMessage, setSaveStatusMessage] = useState<string | null>(null);
+  const [isCheckingManually, setIsCheckingManually] = useState<boolean>(false);
+
 
   useEffect(() => {
     setGeminiApiKey(contextGeminiApiKey || '');
   }, [contextGeminiApiKey]);
 
-  const handleSaveSettings = async () => { // Make async
+  const handleSaveSettings = async () => {
     setContextGeminiApiKey(geminiApiKey);
-    await checkApiKey(geminiApiKey); // Await the check
-    alert('Settings saved and API key status updated!'); // Update alert message
+    // checkApiKey is already called by the AppContext when contextGeminiApiKey changes.
+    // However, if we want immediate feedback on *this* page after save, explicitly calling it can be useful.
+    // Or rely on the AppContext's useEffect for contextGeminiApiKey.
+    // For this task, let's assume we want explicit feedback tied to the save action.
+    const newStatus = await checkApiKey(geminiApiKey);
+    setSaveStatusMessage(`Settings saved. API Key status: ${newStatus}.`);
+    setTimeout(() => setSaveStatusMessage(null), 5000); // Clear message after 5 seconds
+  };
+
+  const handleCheckKey = async () => {
+    if (!geminiApiKey.trim()) return;
+    setIsCheckingManually(true);
+    // We call checkApiKey from context, which updates apiKeyStatus globally
+    await checkApiKey(geminiApiKey);
+    // No need to set a specific message here as apiKeyStatus will update globally.
+    // The 'checking' status itself provides feedback.
+    // After checkApiKey finishes, apiKeyStatus will be updated, and the UI will reflect it.
+    setIsCheckingManually(false); // Reset manual check trigger
   };
   
   return (
@@ -57,33 +76,50 @@ const SettingsView: React.FC = () => {
                 <p className="text-sm text-gray-400 mb-2">
                     Current Status: 
                     <span className={`font-semibold ml-1 ${
-                        apiKeyStatus === 'valid' ? 'text-green-400' : 
-                        apiKeyStatus === 'missing' ? 'text-red-400' : 
-                        apiKeyStatus === 'invalid' ? 'text-orange-400' : 'text-yellow-400' // Added 'invalid' color
-                    }`}>
-                        {apiKeyStatus === 'valid' ? 'Valid & Active' : 
-                         apiKeyStatus === 'missing' ? 'Missing' : 
-                         apiKeyStatus === 'invalid' ? 'Invalid Key' : 'Checking...' // Added 'invalid' text
-                        }
-                    </span>
-                </p>
-                {(apiKeyStatus === 'missing' || apiKeyStatus === 'invalid') && ( // Show for missing or invalid
-                    <p className="text-sm text-yellow-300 mb-2">
-                        To use AI-powered features, please enter a valid API key above and save settings. 
-                        <a href={GEMINI_API_KEY_INFO_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-100 ml-1">Get an API Key here.</a>
+                            apiKeyStatus === 'valid' ? 'text-green-400' :
+                            apiKeyStatus === 'missing' ? 'text-red-400' :
+                            apiKeyStatus === 'invalid' ? 'text-orange-400' :
+                            apiKeyStatus === 'checking' ? 'text-yellow-400' : 'text-gray-400' // Default for idle or other states
+                        }`}>
+                            {apiKeyStatus === 'valid' ? 'Valid & Active' :
+                             apiKeyStatus === 'missing' ? 'Missing' :
+                             apiKeyStatus === 'invalid' ? 'Invalid Key' :
+                             apiKeyStatus === 'checking' ? 'Verifying Key...' : 'Idle'
+                            }
+                        </span>
+                         {isCheckingManually && apiKeyStatus === 'checking' && <span className="text-yellow-400 ml-2">(Manual check...)</span>}
                     </p>
-                )}
+                    {(apiKeyStatus === 'missing' || apiKeyStatus === 'invalid') && (
+                        <p className="text-sm text-yellow-300 mb-2">
+                            To use AI-powered features, please enter a valid API key above and save settings.
+                            <a href={GEMINI_API_KEY_INFO_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-yellow-100 ml-1">Get an API Key here.</a>
+                        </p>
+                    )}
+                     <div className="flex items-center space-x-3 mt-3">
+                        <button
+                            onClick={handleCheckKey}
+                            disabled={!geminiApiKey.trim() || apiKeyStatus === 'checking'}
+                            className="bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2 px-3 rounded-md text-sm transition duration-150 ease-in-out disabled:opacity-50"
+                        >
+                            {apiKeyStatus === 'checking' && isCheckingManually ? 'Checking...' : 'Check Validity'}
+                        </button>
+                    </div>
+                </div>
             </div>
-
-        </div>
-         <div className="mt-8 border-t border-gray-700 pt-6">
-            <button 
-                onClick={handleSaveSettings}
-                className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out">
-                Save Settings
-            </button>
-        </div>
-      </SectionPanel>
+            {saveStatusMessage && (
+                <div className="mt-4 p-3 bg-green-800 border border-green-700 rounded-md text-green-200 text-sm">
+                    {saveStatusMessage}
+                </div>
+            )}
+            <div className="mt-8 border-t border-gray-700 pt-6">
+                <button
+                    onClick={handleSaveSettings}
+                    disabled={apiKeyStatus === 'checking'} // Disable save if a check is in progress
+                    className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out disabled:opacity-50">
+                    Save Settings
+                </button>
+            </div>
+        </SectionPanel>
     </div>
   );
 };

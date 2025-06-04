@@ -22,6 +22,8 @@ const TradingView: React.FC = () => {
     searchContracts,
     connectionStatusMessage,
     isLoading,
+    liveQuotes, // Add liveQuotes
+    marketStreamContractId, // Add marketStreamContractId
   } = useTradingContext();
   
   const [activeTab, setActiveTab] = useState<TabType>('topstepx'); // Start with TopstepX tab for testing
@@ -328,6 +330,35 @@ const TradingView: React.FC = () => {
                     </div>
                   )}
                 </div>
+
+                {/* Live Quote Display for TopstepX */}
+                {selectedBroker === 'topstepx' && selectedContract && (
+                  <div className="mt-4 p-3 bg-gray-700 rounded-lg shadow">
+                    <h3 className="text-md font-semibold text-sky-400 mb-2">
+                      Live Quote ({selectedContract.name})
+                    </h3>
+                    {(() => {
+                      const currentQuote = liveQuotes.find(q => q.id === selectedContract.id);
+                      // Check if the selected contract is the one being streamed for live data
+                      if (selectedContract.id !== marketStreamContractId) {
+                        return <p className="text-xs text-yellow-400">Live data stream not active for this specific contract. Subscribe via Market Hub in TopstepX tab.</p>;
+                      }
+                      if (currentQuote) {
+                        // Determine precision for formatting, default to 2 if not specified
+                        const precision = typeof selectedContract.precision === 'number' ? selectedContract.precision : 2;
+                        return (
+                          <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
+                            <div><span className="text-gray-400">Last:</span> <span className="text-white font-mono">{currentQuote.last?.toFixed(precision) ?? 'N/A'}</span></div>
+                            <div><span className="text-gray-400">Bid:</span> <span className="text-blue-400 font-mono">{currentQuote.bid?.toFixed(precision) ?? 'N/A'}</span></div>
+                            <div><span className="text-gray-400">Ask:</span> <span className="text-red-400 font-mono">{currentQuote.ask?.toFixed(precision) ?? 'N/A'}</span></div>
+                            {currentQuote.timestamp && <div><span className="text-gray-400">Time:</span> <span className="text-white font-mono text-xs">{new Date(currentQuote.timestamp).toLocaleTimeString()}</span></div>}
+                          </div>
+                        );
+                      }
+                      return <p className="text-xs text-gray-500">Waiting for live data for {selectedContract.name}...</p>;
+                    })()}
+                  </div>
+                )}
               </div>
             )}
 
