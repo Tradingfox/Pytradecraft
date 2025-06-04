@@ -15,18 +15,19 @@ import {
   generateStructuredAlgorithm,
   explainPythonCodeWithMemory
 } from '../services/geminiService';
-import { MOCK_ALGORITHMS } from '../services/mockTradingService';
 import { useAppContext } from '../contexts/AppContext';
 import { useTradingContext } from '../contexts/TradingContext';
 
 const AlgorithmsView: React.FC = () => {
-  const { apiKeyStatus, geminiApiKey } = useAppContext(); // Added geminiApiKey
-  const { sessionToken } = useTradingContext(); // Get session token for TopstepX API
+  const { apiKeyStatus, geminiApiKey } = useAppContext();
+  const { sessionToken } = useTradingContext();
 
   // Algorithm state
-  const [algorithms, setAlgorithms] = useState<Algorithm[]>(MOCK_ALGORITHMS);
+  const [algorithms, setAlgorithms] = useState<Algorithm[]>([]);
   const [selectedAlgorithm, setSelectedAlgorithm] = useState<Algorithm | null>(null);
   const [currentCode, setCurrentCode] = useState<string>(DEFAULT_ALGORITHM_CODE);
+  const [isLoadingAlgorithms, setIsLoadingAlgorithms] = useState<boolean>(false);
+  const [algorithmError, setAlgorithmError] = useState<string | null>(null);
 
   // UI state
   const [activeTab, setActiveTab] = useState<'code' | 'backtest'>('code');
@@ -40,53 +41,256 @@ const AlgorithmsView: React.FC = () => {
   const [hasMemoryContext, setHasMemoryContext] = useState<boolean>(false);
 
   // Backtest state
-  const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
+  const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]); // This seems to be for *newly run* backtests from BacktestPanel
+  // selectedBacktestResult is already here, it will be repurposed for selecting EITHER a new run or a saved one.
   const [selectedBacktestResult, setSelectedBacktestResult] = useState<BacktestResult | null>(null);
+  const [savedBacktests, setSavedBacktests] = useState<BacktestResult[]>([]); // For listing backtests from API
+  const [isLoadingBacktests, setIsLoadingBacktests] = useState<boolean>(false);
+  const [backtestListError, setBacktestListError] = useState<string | null>(null);
+  const [selectedSavedBacktest, setSelectedSavedBacktest] = useState<BacktestResult | null>(null);
+
+
+  const fetchAlgorithms = useCallback(async () => {
+    if (!sessionToken) {
+      setAlgorithmError("Session token is not available. Cannot fetch algorithms.");
+      // setGeminiOutput(prev => [...prev, "Error: Session token not available. Please log in."]); // Avoid direct geminiOutput update here
+      return;
+    }
+    setIsLoadingAlgorithms(true);
+    setAlgorithmError(null);
+    try {
+      const response = await fetch('/api/algorithms', {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+        },
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to fetch algorithms: ${response.statusText}`);
+      }
+      const data: Algorithm[] = await response.json();
+      setAlgorithms(data);
+      // setGeminiOutput(prev => [...prev, "Algorithms loaded successfully."]); // Avoid direct geminiOutput update here
+    } catch (error) {
+      console.error('Error fetching algorithms:', error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      setAlgorithmError(errMsg);
+      // setGeminiOutput(prev => [...prev, `Error fetching algorithms: ${errMsg}`]); // Avoid direct geminiOutput update here
+    } finally {
+      setIsLoadingAlgorithms(false);
+    }
+  }, [sessionToken]);
+
+  useEffect(() => {
+    fetchAlgorithms();
+  }, [fetchAlgorithms]);
+
+  const fetchSavedBacktests = useCallback(async (algorithmId: string) => {
+    if (!sessionToken) {
+      setBacktestListError("Session token not available. Cannot fetch saved backtests.");
+      return;
+    }
+    setIsLoadingBacktests(true);
+    setBacktestListError(null);
+    try {
+      const response = await fetch(`/api/algorithms/${algorithmId}/backtests`, {
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+        },
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to fetch saved backtests: ${response.statusText}`);
+      }
+      const data: BacktestResult[] = await response.json();
+      setSavedBacktests(data);
+    } catch (error) {
+      console.error('Error fetching saved backtests:', error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      setBacktestListError(errMsg);
+    } finally {
+      setIsLoadingBacktests(false);
+    }
+  }, [sessionToken]);
 
   useEffect(() => {
     if (selectedAlgorithm) {
       setCurrentCode(selectedAlgorithm.code);
       setGeminiOutput([`Algorithm "${selectedAlgorithm.name}" loaded.`]);
+      setAlgorithmError(null);
+      fetchSavedBacktests(selectedAlgorithm.id);
+      setSavedBacktests([]);
+      setBacktestListError(null);
+      setSelectedSavedBacktest(null); // Clear selected saved backtest when main algorithm changes
     } else {
       setCurrentCode(DEFAULT_ALGORITHM_CODE);
-      setGeminiOutput([]);
+      setSavedBacktests([]);
+      setBacktestListError(null);
+      setSelectedSavedBacktest(null); // Clear selected saved backtest
+      // Do not clear all geminiOutput here to preserve other messages.
     }
-  }, [selectedAlgorithm]);
+  }, [selectedAlgorithm, fetchSavedBacktests]);
 
   const handleSelectAlgorithm = (algo: Algorithm) => {
     setSelectedAlgorithm(algo);
   };
 
-  const handleCreateNew = () => {
-    const newAlgo: Algorithm = {
-      id: `algo-${Date.now()}`,
-      name: 'New Untitled Algorithm',
-      code: DEFAULT_ALGORITHM_CODE,
-      description: 'A new trading algorithm.',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setAlgorithms(prev => [newAlgo, ...prev]);
-    setSelectedAlgorithm(newAlgo);
-    setCurrentCode(newAlgo.code);
-    setGeminiOutput(['Created new algorithm. Edit its details and code.']);
+  const handleCreateNew = async () => {
+    if (!sessionToken) {
+      setGeminiOutput(prev => [...prev, "Error: Session token not available. Please log in."]);
+      setAlgorithmError("Session token is not available. Cannot create algorithm.");
+      return;
+    }
+    setIsLoadingAlgorithms(true);
+    setAlgorithmError(null);
+    setGeminiOutput(prev => [...prev, "Creating new algorithm..."]);
+
+    try {
+      const newAlgorithmData = {
+        name: 'New Untitled Algorithm',
+        code: DEFAULT_ALGORITHM_CODE,
+        description: 'A new trading algorithm.',
+      };
+      const response = await fetch('/api/algorithms', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify(newAlgorithmData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to create algorithm: ${response.statusText}`);
+      }
+      const createdAlgorithm: Algorithm = await response.json();
+      await fetchAlgorithms(); // Refresh the list
+      // Or, for optimistic update: setAlgorithms(prev => [createdAlgorithm, ...prev]);
+      setSelectedAlgorithm(createdAlgorithm);
+      // setCurrentCode(createdAlgorithm.code); // This is handled by useEffect on selectedAlgorithm change
+      setGeminiOutput(prev => [...prev, `Successfully created "${createdAlgorithm.name}". Select it to start editing.`]);
+    } catch (error) {
+      console.error('Error creating new algorithm:', error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      setAlgorithmError(errMsg);
+      setGeminiOutput(prev => [...prev, `Error creating algorithm: ${errMsg}`]);
+    } finally {
+      setIsLoadingAlgorithms(false);
+    }
   };
 
-  const handleSaveAlgorithm = () => {
-    if (selectedAlgorithm) {
-      const updatedAlgo = { ...selectedAlgorithm, code: currentCode, name: selectedAlgorithm.name, updatedAt: new Date().toISOString() }; // Add name editing later
-      setAlgorithms(prev => prev.map(a => a.id === updatedAlgo.id ? updatedAlgo : a));
-      setSelectedAlgorithm(updatedAlgo);
-      setGeminiOutput(prev => [...prev, `Algorithm "${updatedAlgo.name}" saved successfully.`]);
-      alert('Algorithm saved (mock)!');
+  const handleSaveAlgorithm = async () => {
+    if (!selectedAlgorithm) {
+      setGeminiOutput(prev => [...prev, "Error: No algorithm selected to save."]);
+      return;
+    }
+    if (!sessionToken) {
+      setGeminiOutput(prev => [...prev, "Error: Session token not available. Please log in."]);
+      setAlgorithmError("Session token is not available. Cannot save algorithm.");
+      return;
+    }
+
+    setIsLoadingAlgorithms(true);
+    setAlgorithmError(null);
+    setGeminiOutput(prev => [...prev, `Saving algorithm "${selectedAlgorithm.name}"...`]);
+
+    try {
+      const algorithmToSave = {
+        name: selectedAlgorithm.name,
+        code: currentCode, // Use currentCode from editor
+        description: selectedAlgorithm.description,
+      };
+      const response = await fetch(`/api/algorithms/${selectedAlgorithm.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify(algorithmToSave),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to save algorithm: ${response.statusText}`);
+      }
+      const updatedAlgorithm: Algorithm = await response.json();
+      await fetchAlgorithms(); // Refresh the list
+      // Or, for optimistic update:
+      // setAlgorithms(prev => prev.map(a => a.id === updatedAlgorithm.id ? updatedAlgorithm : a));
+      // setSelectedAlgorithm(updatedAlgorithm); // Keep current selection, data will refresh
+      setGeminiOutput(prev => [...prev, `Algorithm "${updatedAlgorithm.name}" saved successfully.`]);
+    } catch (error) {
+      console.error('Error saving algorithm:', error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      setAlgorithmError(errMsg);
+      setGeminiOutput(prev => [...prev, `Error saving algorithm: ${errMsg}`]);
+    } finally {
+      setIsLoadingAlgorithms(false);
+    }
+  };
+
+  const handleDeleteAlgorithm = async (algorithmId: string) => {
+    if (!sessionToken) {
+      setGeminiOutput(prev => [...prev, "Error: Session token not available. Please log in."]);
+      setAlgorithmError("Session token is not available. Cannot delete algorithm.");
+      return;
+    }
+
+    if (!window.confirm("Are you sure you want to delete this algorithm? This action cannot be undone.")) {
+      return;
+    }
+
+    setIsLoadingAlgorithms(true);
+    setAlgorithmError(null);
+    const algorithmToDelete = algorithms.find(a => a.id === algorithmId);
+    setGeminiOutput(prev => [...prev, `Deleting algorithm "${algorithmToDelete?.name || algorithmId}"...`]);
+
+    try {
+      const response = await fetch(`/api/algorithms/${algorithmId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${sessionToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to delete algorithm: ${response.statusText}`);
+      }
+
+      setGeminiOutput(prev => [...prev, `Algorithm "${algorithmToDelete?.name || algorithmId}" deleted successfully.`]);
+      await fetchAlgorithms(); // Refresh the list
+
+      if (selectedAlgorithm?.id === algorithmId) {
+        setSelectedAlgorithm(null);
+        // setCurrentCode(DEFAULT_ALGORITHM_CODE); // Handled by useEffect on selectedAlgorithm
+      }
+    } catch (error) {
+      console.error('Error deleting algorithm:', error);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      setAlgorithmError(errMsg);
+      setGeminiOutput(prev => [...prev, `Error deleting algorithm: ${errMsg}`]);
+    } finally {
+      setIsLoadingAlgorithms(false);
     }
   };
 
   // Handle backtest completion
-  const handleBacktestComplete = (result: BacktestResult) => {
-    setBacktestResults(prev => [result, ...prev]);
-    setSelectedBacktestResult(result);
-    setGeminiOutput(prev => [...prev, `Backtest completed for "${result.algorithmName}". Final equity: $${result.finalEquity.toLocaleString()}`]);
+  const handleBacktestComplete = (newBacktestResult: BacktestResult) => {
+    // The BacktestPanel already calls saveBacktestResult which should save to backend.
+    // We just need to refresh the list of saved backtests.
+    setGeminiOutput(prev => [...prev, `New backtest completed for "${newBacktestResult.algorithmName}". Final equity: $${newBacktestResult.finalEquity.toLocaleString()}. Refreshing list...`]);
+
+    setBacktestResults(prev => [newBacktestResult, ...prev]);
+    setSelectedBacktestResult(newBacktestResult); // This shows the NEWLY RUN backtest details
+    setSelectedSavedBacktest(null); // Clear any selected SAVED backtest to avoid confusion
+
+    if (newBacktestResult.algorithmId) {
+      fetchSavedBacktests(newBacktestResult.algorithmId);
+    } else {
+      setBacktestListError("Could not refresh backtests: Algorithm ID missing from new backtest result.");
+    }
   };
 
   const handleGeminiAction = useCallback(async (actionType: 'generate' | 'explain' | 'followup') => {
@@ -205,20 +409,41 @@ const AlgorithmsView: React.FC = () => {
         <SectionPanel title="My Algorithms">
           <button 
             onClick={handleCreateNew}
-            className="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out mb-4"
+            disabled={isLoadingAlgorithms || !sessionToken || (apiKeyStatus === 'missing' || apiKeyStatus === 'invalid')}
+            className="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out mb-4 disabled:opacity-50"
           >
-            Create New Algorithm
+            {isLoadingAlgorithms && algorithms.length === 0 ? <LoadingSpinner size="sm" /> : 'Create New Algorithm'}
           </button>
+          {isLoadingAlgorithms && algorithms.length === 0 && <LoadingSpinner message="Loading algorithms..." />}
+          {algorithmError && <p className="text-red-400 text-sm p-2 bg-red-900 rounded-md">{algorithmError}</p>}
+          {!isLoadingAlgorithms && !algorithmError && algorithms.length === 0 && sessionToken && (
+            <p className="text-gray-400 text-center">No algorithms yet. Create one!</p>
+          )}
+          {!sessionToken && !isLoadingAlgorithms && (
+             <p className="text-yellow-400 text-sm p-2 bg-yellow-900 rounded-md">Session token not found. Please log in to manage algorithms.</p>
+          )}
           <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar pr-2">
             {algorithms.map(algo => (
-              <div 
+              <div
                 key={algo.id}
-                onClick={() => handleSelectAlgorithm(algo)}
-                className={`p-3 rounded-md cursor-pointer transition-colors ${selectedAlgorithm?.id === algo.id ? 'bg-sky-700 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
+                className={`p-3 rounded-md cursor-pointer transition-colors group relative ${selectedAlgorithm?.id === algo.id ? 'bg-sky-700 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
               >
-                <h4 className="font-semibold">{algo.name}</h4>
-                <p className="text-xs text-gray-400 truncate">{algo.description}</p>
-                <p className="text-xs text-gray-500">Last updated: {new Date(algo.updatedAt).toLocaleDateString()}</p>
+                <div onClick={() => handleSelectAlgorithm(algo)}>
+                  <h4 className="font-semibold">{algo.name}</h4>
+                  <p className="text-xs text-gray-400 truncate">{algo.description}</p>
+                  <p className="text-xs text-gray-500">Last updated: {new Date(algo.updatedAt).toLocaleDateString()}</p>
+                </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation(); // Prevent selecting the algorithm
+                    handleDeleteAlgorithm(algo.id);
+                  }}
+                  disabled={isLoadingAlgorithms || !sessionToken}
+                  className="absolute top-1 right-1 bg-red-600 hover:bg-red-500 text-white font-bold py-1 px-2 rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity duration-150 disabled:opacity-50 disabled:hover:bg-red-600"
+                  title="Delete Algorithm"
+                >
+                  ✕
+                </button>
               </div>
             ))}
           </div>
@@ -238,13 +463,55 @@ const AlgorithmsView: React.FC = () => {
                 className="w-full bg-gray-700 text-white p-2 rounded-md mb-2 h-24 resize-none border border-gray-600 focus:ring-sky-500 focus:border-sky-500"
                 placeholder="Algorithm Description"
               />
-            <button 
-              onClick={handleSaveAlgorithm}
-              disabled={geminiStatus === GeminiRequestStatus.LOADING}
-              className="w-full bg-green-600 hover:bg-green-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out disabled:opacity-50"
-            >
-              Save Algorithm
-            </button>
+            <div className="flex space-x-2">
+              <button
+                onClick={handleSaveAlgorithm}
+                disabled={isLoadingAlgorithms || geminiStatus === GeminiRequestStatus.LOADING || !sessionToken}
+                className="flex-grow bg-green-600 hover:bg-green-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out disabled:opacity-50"
+              >
+                {isLoadingAlgorithms ? <LoadingSpinner size="sm" /> : 'Save Algorithm'}
+              </button>
+              <button
+                onClick={() => handleDeleteAlgorithm(selectedAlgorithm.id)}
+                disabled={isLoadingAlgorithms || !sessionToken}
+                className="bg-red-600 hover:bg-red-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out disabled:opacity-50"
+                title="Delete Selected Algorithm"
+              >
+                Delete
+              </button>
+            </div>
+          </SectionPanel>
+        )}
+
+        {/* Saved Backtests List */}
+        {selectedAlgorithm && (
+          <SectionPanel title={`Saved Backtests for ${selectedAlgorithm.name}`}>
+            {isLoadingBacktests && <LoadingSpinner message="Loading backtests..." />}
+            {backtestListError && <p className="text-red-400 text-sm p-2 bg-red-900 rounded-md">{backtestListError}</p>}
+            {!isLoadingBacktests && !backtestListError && savedBacktests.length === 0 && (
+              <p className="text-gray-400 text-center">No saved backtests for this algorithm.</p>
+            )}
+            {!isLoadingBacktests && !backtestListError && savedBacktests.length > 0 && (
+              <div className="max-h-60 overflow-y-auto space-y-2 custom-scrollbar pr-2">
+                {savedBacktests.sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()).map(bt => (
+                  <div
+                    key={bt.id}
+                    onClick={() => {
+                      setSelectedSavedBacktest(bt);
+                      setSelectedBacktestResult(null); // Clear any selected newly run backtest
+                      setActiveTab('backtest'); // Switch to backtest tab to view details
+                    }}
+                    className={`p-2 rounded-md cursor-pointer transition-colors ${selectedSavedBacktest?.id === bt.id ? 'bg-sky-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
+                  >
+                    <p className="text-sm font-semibold">Run at: {new Date(bt.generatedAt).toLocaleString()}</p>
+                    <div className="flex justify-between text-xs">
+                      <span>Return: <span className={parseFloat(bt.totalReturn) >= 0 ? 'text-green-400' : 'text-red-400'}>{bt.totalReturn}</span></span>
+                      <span>Sharpe: {bt.sharpeRatio?.toFixed(2) ?? 'N/A'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </SectionPanel>
         )}
       </div>
@@ -284,10 +551,10 @@ const AlgorithmsView: React.FC = () => {
               actions={
                 <button 
                   onClick={handleSaveAlgorithm}
-                  disabled={!selectedAlgorithm || geminiStatus === GeminiRequestStatus.LOADING}
+                  disabled={!selectedAlgorithm || isLoadingAlgorithms || geminiStatus === GeminiRequestStatus.LOADING || !sessionToken || (apiKeyStatus === 'missing' || apiKeyStatus === 'invalid')}
                   className="bg-green-600 hover:bg-green-500 text-white font-semibold py-1 px-3 rounded-md text-sm transition duration-150 ease-in-out disabled:opacity-50"
                 >
-                  Save Code
+                  {isLoadingAlgorithms && selectedAlgorithm ? <LoadingSpinner size="xs" /> : 'Save Code'}
                 </button>
               }
             >
@@ -295,7 +562,13 @@ const AlgorithmsView: React.FC = () => {
             </SectionPanel>
 
             <SectionPanel title="Gemini AI Assistant">
-              {apiKeyStatus === 'missing' || apiKeyStatus === 'invalid' && ( // Show for missing or invalid
+              {/* Combined error display spot */}
+              {(algorithmError && activeTab === 'code') && (
+                 <div className="mb-4 p-3 bg-red-800 border border-red-700 rounded-md text-red-300 text-sm">
+                   <strong>Algorithm Operation Error:</strong> {algorithmError}
+                 </div>
+              )}
+              {(apiKeyStatus === 'missing' || apiKeyStatus === 'invalid') && (
                 <div className="mb-4 p-3 bg-red-800 border border-red-700 rounded-md text-yellow-200 text-sm">
                   Gemini API Key is {apiKeyStatus === 'invalid' ? 'invalid' : 'missing'}. AI features are disabled. 
                   Please set a valid <code>API_KEY</code> in Settings. 
@@ -380,10 +653,55 @@ const AlgorithmsView: React.FC = () => {
 
         {/* Backtest Tab */}
         {activeTab === 'backtest' && selectedAlgorithm && (
-          <BacktestPanel 
-            algorithm={selectedAlgorithm} 
-            onBacktestComplete={handleBacktestComplete} 
-          />
+          <>
+            {selectedSavedBacktest ? (
+              <SectionPanel title={`Details for Saved Backtest (Run: ${new Date(selectedSavedBacktest.generatedAt).toLocaleString()})`}>
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="text-lg font-semibold text-white mb-2">Algorithm: {selectedAlgorithm.name}</h4>
+                  </div>
+                  <div>
+                    <h4 className="text-md font-semibold text-gray-200 mb-1">Performance Metrics</h4>
+                    <BacktestMetricsTable metrics={selectedSavedBacktest.metrics} />
+                  </div>
+                  <div>
+                    <h4 className="text-md font-semibold text-gray-200 mb-1">Equity Curve</h4>
+                    <BacktestResultsChart result={selectedSavedBacktest} />
+                  </div>
+                  <div>
+                    <h4 className="text-md font-semibold text-gray-200 mb-1">Trades</h4>
+                    <BacktestTradesTable trades={selectedSavedBacktest.trades} />
+                  </div>
+                  <div>
+                    <h4 className="text-md font-semibold text-gray-200 mb-1">Logs</h4>
+                    <ConsoleOutput lines={selectedSavedBacktest.logs} title="Saved Backtest Logs" height="200px" />
+                  </div>
+                  <button
+                    onClick={() => setSelectedSavedBacktest(null)}
+                    className="mt-4 bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out"
+                  >
+                    Close Details (Show Run New Backtest Panel)
+                  </button>
+                </div>
+              </SectionPanel>
+            ) : selectedBacktestResult ? ( // If a NEWLY RUN backtest is selected (from BacktestPanel completion)
+              // This part is implicitly handled if BacktestPanel itself shows results,
+              // or you can expand this to show newly run selectedBacktestResult similarly
+              // For now, focusing on selectedSavedBacktest. If selectedBacktestResult is set,
+              // BacktestPanel might be displaying it or could be enhanced to.
+              // Let's assume BacktestPanel handles its own immediate output display for now.
+              // So, if no SAVED backtest is selected, show the panel to run a new one.
+               <BacktestPanel
+                algorithm={selectedAlgorithm}
+                onBacktestComplete={handleBacktestComplete}
+              />
+            ) : (
+              <BacktestPanel
+                algorithm={selectedAlgorithm}
+                onBacktestComplete={handleBacktestComplete}
+              />
+            )}
+          </>
         )}
 
         {/* Console Output (shown in both tabs) */}

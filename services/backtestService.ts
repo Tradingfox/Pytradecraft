@@ -2,6 +2,9 @@ import { Algorithm, BacktestResult, HistoricalDataRequest, HistoricalBar, Equity
 import { getHistoricalData } from './tradingApiService';
 import { runMockBacktest } from './mockTradingService';
 
+// Placeholder for authentication token retrieval
+const getAuthToken = () => 'dummy-auth-token';
+
 /**
  * Service for running backtests on trading algorithms
  */
@@ -320,14 +323,36 @@ export const runBacktest = async (
  * @returns Promise with the saved backtest result
  */
 export const saveBacktestResult = async (backtestResult: BacktestResult): Promise<BacktestResult> => {
+  const token = getAuthToken();
+  const { algorithmId } = backtestResult; // Extract algorithmId from backtestResult
+
+  if (!algorithmId) {
+    console.error('Algorithm ID is missing in backtestResult');
+    throw new Error('Algorithm ID is required to save backtest result');
+  }
+
   try {
-    // This is a placeholder for the actual database save
-    // In a real implementation, we would save to the database
-    console.log('Saving backtest result:', backtestResult.id);
-    return backtestResult;
+    const response = await fetch(`/api/algorithms/${algorithmId}/backtests`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(backtestResult),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Error saving backtest result:', errorData);
+      throw new Error(errorData.error || `Failed to save backtest result: ${response.statusText}`);
+    }
+
+    const savedResult: BacktestResult = await response.json();
+    console.log('Backtest result saved successfully:', savedResult.id);
+    return savedResult;
   } catch (error) {
-    console.error('Error saving backtest result:', error);
-    throw error;
+    console.error('Error in saveBacktestResult:', error);
+    throw error; // Re-throw to be handled by the caller
   }
 };
 
@@ -337,13 +362,26 @@ export const saveBacktestResult = async (backtestResult: BacktestResult): Promis
  * @returns Promise with an array of backtest results
  */
 export const getBacktestResults = async (algorithmId: string): Promise<BacktestResult[]> => {
+  const token = getAuthToken();
   try {
-    // This is a placeholder for the actual database query
-    // In a real implementation, we would fetch from the database
-    console.log('Getting backtest results for algorithm:', algorithmId);
-    return [];
+    const response = await fetch(`/api/algorithms/${algorithmId}/backtests`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Error getting backtest results:', errorData);
+      throw new Error(errorData.error || `Failed to get backtest results: ${response.statusText}`);
+    }
+
+    const results: BacktestResult[] = await response.json();
+    console.log(`Fetched ${results.length} backtest results for algorithm:`, algorithmId);
+    return results;
   } catch (error) {
-    console.error('Error getting backtest results:', error);
+    console.error('Error in getBacktestResults:', error);
     throw error;
   }
 };
@@ -354,13 +392,30 @@ export const getBacktestResults = async (algorithmId: string): Promise<BacktestR
  * @returns Promise with the backtest result
  */
 export const getBacktestResult = async (backtestId: string): Promise<BacktestResult | null> => {
+  const token = getAuthToken();
   try {
-    // This is a placeholder for the actual database query
-    // In a real implementation, we would fetch from the database
-    console.log('Getting backtest result:', backtestId);
-    return null;
+    const response = await fetch(`/api/algorithms/backtests/${backtestId}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log('Backtest result not found:', backtestId);
+        return null;
+      }
+      const errorData = await response.json();
+      console.error('Error getting backtest result:', errorData);
+      throw new Error(errorData.error || `Failed to get backtest result: ${response.statusText}`);
+    }
+
+    const result: BacktestResult = await response.json();
+    console.log('Fetched backtest result:', result.id);
+    return result;
   } catch (error) {
-    console.error('Error getting backtest result:', error);
+    console.error('Error in getBacktestResult:', error);
     throw error;
   }
 };
