@@ -1,5 +1,5 @@
 const { DataTypes } = require('sequelize');
-const sequelize = require('../config/database');
+const sequelize = require('../config/database.cjs');
 const bcrypt = require('bcryptjs');
 
 const User = sequelize.define('User', {
@@ -71,7 +71,16 @@ const User = sequelize.define('User', {
     type: DataTypes.STRING,
     allowNull: true,
   },
-  // Timestamps
+  apiKeys: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: {},
+  },
+  preferences: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: {},
+  },
   createdAt: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,
@@ -80,19 +89,11 @@ const User = sequelize.define('User', {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW,
   },
-}, {
-  // Model options
-  tableName: 'users',
-  hooks: {
-    beforeUpdate: (user) => {
-      user.updatedAt = new Date();
-    }
-  }
 });
 
-// Instance method to compare passwords
-User.prototype.comparePassword = function (password) {
+// Instance method to verify password
+User.prototype.verifyPassword = function(password) {
   return bcrypt.compareSync(password, this.passwordHash);
 };
 
-module.exports = User;
+module.exports = User; 

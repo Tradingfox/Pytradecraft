@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Algorithm, BacktestResult } = require('../models'); // Assuming db is exported from ../models/index.js
+const { Algorithm, BacktestResult } = require('../models/index.cjs'); // Assuming db is exported from ../models/index.js
 
 // Placeholder for authentication middleware
 const authMiddleware = (req, res, next) => {
@@ -208,5 +208,4 @@ router.get('/backtests/:backtestId', authMiddleware, async (req, res) => {
   }
 });
 
-
-module.exports = router;
+module.exports = router; 

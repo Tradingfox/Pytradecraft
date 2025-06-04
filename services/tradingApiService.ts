@@ -26,9 +26,18 @@ import { TOPSTEPX_API_BASE_URL, PROJECTX_MARKET_HUB_URL } from '../constants.tsx
 import { fetchTopstepXHistoricalData } from './topstepXService';
 import { HubConnectionBuilder, HttpTransportType } from '@microsoft/signalr';
 
+// Proxy prefix for backend API - use this for local APIs, not external APIs
+const API_BASE_URL = '/api';
+
+// Update the API base URLs to use our proxy
+const PROJECTX_API_BASE_URL = '/external/projectx';
+const TOPSTEPX_API_BASE_URL = '/external/topstep';
+
 const getApiBaseUrl = (broker: BrokerType): string => {
     if (broker === 'projectx') return PROJECTX_API_BASE_URL;
     if (broker === 'topstepx') return TOPSTEPX_API_BASE_URL;
+    // Local API endpoints
+    if (broker === 'local') return API_BASE_URL;
     throw new Error('Invalid broker type specified');
 };
 
@@ -63,11 +72,18 @@ async function makeApiRequest<T_Response, T_Request = any>(
     });
 
     try {
+        // Add timeout to fetch requests to avoid hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
         const response = await fetch(url, {
             method,
             headers,
             body: body ? JSON.stringify(body) : undefined,
+            signal: controller.signal,
         });
+        
+        clearTimeout(timeoutId);
 
         console.log('📡 API Response:', {
             url,
@@ -82,7 +98,7 @@ async function makeApiRequest<T_Response, T_Request = any>(
             console.error('❌ API Error Response:', {
                 status: response.status,
                 statusText: response.statusText,
-                errorText,
+                errorText: errorText.substring(0, 500) + (errorText.length > 500 ? '...' : ''),
                 url
             });
 
@@ -94,13 +110,18 @@ async function makeApiRequest<T_Response, T_Request = any>(
                 errorData = { errorMessage: errorText || `HTTP ${response.status}: ${response.statusText}` };
             }
 
-            // Return a structured error response
-            return {
-                success: false,
-                errorCode: response.status,
-                errorMessage: errorData.errorMessage || errorData.message || errorText || `HTTP ${response.status}: ${response.statusText}`,
-                token: null
-            } as T_Response;
+            // For external APIs, return a structured error response
+            if (broker !== 'local') {
+                return {
+                    success: false,
+                    errorCode: response.status,
+                    errorMessage: errorData.errorMessage || errorData.message || errorText || `HTTP ${response.status}: ${response.statusText}`,
+                    token: null
+                } as T_Response;
+            } else {
+                // For local API, throw a more descriptive error
+                throw new Error(`API error (${response.status}): ${errorData.errorMessage || errorData.message || errorText || response.statusText}`);
+            }
         }
 
         const responseText = await response.text();
@@ -110,7 +131,21 @@ async function makeApiRequest<T_Response, T_Request = any>(
             responsePreview: responseText.substring(0, 200) + (responseText.length > 200 ? '...' : '')
         });
 
-        // The TopStepX doc for /api/Auth/loginKey mentions 'accept: text/plain' but returns JSON.
+        // Handle empty responses
+        if (!responseText.trim()) {
+            console.log('⚠️ Empty response received');
+            if (broker !== 'local') {
+                return {
+                    success: true,
+                    errorCode: 0,
+                    errorMessage: null
+                } as T_Response;
+            } else {
+                // For local API that should return JSON, this is an error
+                throw new Error('Empty response received from API');
+            }
+        }
+
         // Robustly parse, assuming it's likely JSON.
         try {
             const responseData: T_Response = JSON.parse(responseText);
@@ -124,30 +159,56 @@ async function makeApiRequest<T_Response, T_Request = any>(
         } catch (e) {
             console.error("❌ Failed to parse JSON response:", {
                 url,
-                responseText,
+                responseText: responseText.substring(0, 500) + (responseText.length > 500 ? '...' : ''),
                 parseError: e instanceof Error ? e.message : String(e)
             });
 
-            // Return a structured error response for parse failures
-            return {
-                success: false,
-                errorCode: 1000,
-                errorMessage: "Invalid JSON response from server: " + responseText,
-                token: null
-            } as T_Response;
+            // For external APIs, return a structured error response for parse failures
+            if (broker !== 'local') {
+                return {
+                    success: false,
+                    errorCode: 1000,
+                    errorMessage: "Invalid JSON response from server: " + responseText.substring(0, 100) + (responseText.length > 100 ? '...' : ''),
+                    token: null
+                } as T_Response;
+            } else {
+                // For local API, throw a more descriptive error
+                throw new Error(`Failed to parse JSON response: ${e instanceof Error ? e.message : String(e)}`);
+            }
         }
 
     } catch (error) {
+        // Check for abort error specifically
+        if (error instanceof DOMException && error.name === 'AbortError') {
+            console.error(`⏱️ API request to ${url} timed out after 30 seconds`);
+            if (broker !== 'local') {
+                return {
+                    success: false,
+                    errorCode: 1002,
+                    errorMessage: `Request timed out after 30 seconds`,
+                    token: null
+                } as T_Response;
+            } else {
+                throw new Error(`API request timed out after 30 seconds`);
+            }
+        }
+        
         console.error(`💥 API request to ${url} encountered an error:`, error);
 
         // Return a structured error response for network/other errors
         const errorMessage = error instanceof Error ? error.message : String(error);
-        return {
-            success: false,
-            errorCode: 1001,
-            errorMessage: `Network error: ${errorMessage}`,
-            token: null
-        } as T_Response;
+        
+        if (broker !== 'local') {
+            return {
+                success: false,
+                errorCode: 1001,
+                errorMessage: `Network error: ${errorMessage}`,
+                token: null
+            } as T_Response;
+        } else {
+            // Re-throw the error for local APIs
+            throw error;
+        }
     }
 }
 

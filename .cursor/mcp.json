@@ -1,0 +1,186 @@
+{
+  "mcpServers": {
+    "cursor10x-mcp": {
+      "command": "npx",
+      "args": [
+        "cursor10x-mcp"
+      ],
+      "enabled": true,
+      "env": {
+        "TURSO_DATABASE_URL": "libsql://cursor10x-mcp-stblaster.aws-eu-west-1.turso.io",
+        "TURSO_AUTH_TOKEN": "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJnaWQiOiIzYmEzMmEwMS1jZDRiLTRkYjUtOGRkNi1kNTE4NDk5NzVmNzYiLCJpYXQiOjE3NDgyODM3MDcsInJpZCI6IjU2NTVmMzEwLWU2ZTItNDU3ZS05OGQ0LTQ5MDc3NzRiYzhjNSJ9.8TNYFLTBIkmwLmccQ_oPzZnGfFpoxFrUvqdjuz3fObrvQkTGrqDFkqgefowBRYCXPn6IEVJkUuHym44AvO3IBw"
+      }
+    },
+    "Supermemory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "supergateway",
+        "--sse",
+        "https://mcp.supermemory.ai/EjBeG3n6Vbyf4Yi-kz93h/sse"
+      ]
+    },
+    "server-sequential-thinking": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@smithery-ai/server-sequential-thinking",
+        "--key",
+        "c82cf1f3-bc6f-4ca3-a655-3b0ae62d00c7"
+      ]
+    },
+    "mcp-shrimp-task-manager": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@cjo4m06/mcp-shrimp-task-manager",
+        "--key",
+        "c82cf1f3-bc6f-4ca3-a655-3b0ae62d00c7",
+        "--profile",
+        "upper-swordfish-nb2F3k"
+      ]
+    },
+    "toolbox": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@smithery/toolbox",
+        "--key",
+        "c82cf1f3-bc6f-4ca3-a655-3b0ae62d00c7",
+        "--profile",
+        "upper-swordfish-nb2F3k"
+      ]
+    },
+    "flux-imagegen-mcp-server": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@falahgs/flux-imagegen-mcp-server",
+        "--key",
+        "c82cf1f3-bc6f-4ca3-a655-3b0ae62d00c7"
+      ]
+    },
+    "imagen-3-0-generate-google-mcp-server": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@falahgs/imagen-3-0-generate-google-mcp-server",
+        "--key",
+        "c82cf1f3-bc6f-4ca3-a655-3b0ae62d00c7",
+        "--profile",
+        "upper-swordfish-nb2F3k"
+      ]
+    },
+    "context7-mcp": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@upstash/context7-mcp",
+        "--key",
+        "c82cf1f3-bc6f-4ca3-a655-3b0ae62d00c7"
+      ]
+    },
+    "mongodb-mcp-server": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@mongodb-js/mongodb-mcp-server",
+        "--key",
+        "c82cf1f3-bc6f-4ca3-a655-3b0ae62d00c7"
+      ]
+    },
+    "exa": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "exa",
+        "--key",
+        "c82cf1f3-bc6f-4ca3-a655-3b0ae62d00c7"
+      ]
+    },
+    "browsercat-mcp-server": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@dmaznest/browsercat-mcp-server",
+        "--key",
+        "c82cf1f3-bc6f-4ca3-a655-3b0ae62d00c7",
+        "--profile",
+        "upper-swordfish-nb2F3k"
+      ]
+    },
+    "playwright-consolelogs-mcp": {
+      "command": "cmd",
+      "args": [
+        "/c",
+        "npx",
+        "-y",
+        "@smithery/cli@latest",
+        "run",
+        "@Lumeva-AI/playwright-consolelogs-mcp",
+        "--key",
+        "c82cf1f3-bc6f-4ca3-a655-3b0ae62d00c7"
+      ]
+    },
+    "puppeteer": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-puppeteer"
+      ]
+    },
+    "memory-bank": {
+      "url": "https://mcp-cursor-setup-enlighter.replit.app/sse"
+    },
+    "memory": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-memory"
+      ]
+    },
+    "mcp-compass": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@liuyoshio/mcp-compass"
+      ]
+    }
+  }
+} 

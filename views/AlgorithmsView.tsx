@@ -20,7 +20,7 @@ import { useTradingContext } from '../contexts/TradingContext';
 
 const AlgorithmsView: React.FC = () => {
   const { apiKeyStatus, geminiApiKey } = useAppContext();
-  const { sessionToken } = useTradingContext();
+  const { sessionToken, userAccounts, selectedAccountId } = useTradingContext();
 
   // Algorithm state
   const [algorithms, setAlgorithms] = useState<Algorithm[]>([]);
@@ -58,6 +58,13 @@ const AlgorithmsView: React.FC = () => {
   const [totalSavedBacktestsCount, setTotalSavedBacktestsCount] = useState<number>(0);
   const [backtestsPerPage, setBacktestsPerPage] = useState<number>(5);
 
+  // Add deployment-related state
+  const [isDeploymentModalOpen, setIsDeploymentModalOpen] = useState<boolean>(false);
+  const [deploymentAccounts, setDeploymentAccounts] = useState<string[]>([]);
+  const [deploymentParameters, setDeploymentParameters] = useState<Record<string, string>>({});
+  const [deploymentStatus, setDeploymentStatus] = useState<Record<string, 'pending' | 'success' | 'failed'>>({});
+  const [isDeploying, setIsDeploying] = useState<boolean>(false);
+  const [deploymentLog, setDeploymentLog] = useState<string[]>([]);
 
   const fetchAlgorithms = useCallback(async (page: number, limit: number) => {
     if (!sessionToken) {
@@ -481,6 +488,102 @@ const AlgorithmsView: React.FC = () => {
     }
   }, [geminiPrompt, currentCode, followUpQuestion, selectedMcpServer, hasMemoryContext, apiKeyStatus, geminiApiKey, selectedAlgorithm]);
 
+  // Function to open the deployment modal
+  const openDeploymentModal = () => {
+    if (!selectedAlgorithm) {
+      setGeminiOutput(prev => [...prev, "Error: No algorithm selected to deploy."]);
+      return;
+    }
+    
+    // Initialize with the currently selected account if available
+    if (selectedAccountId) {
+      setDeploymentAccounts([selectedAccountId.toString()]);
+    } else {
+      setDeploymentAccounts([]);
+    }
+    
+    // Reset deployment states
+    setDeploymentParameters({});
+    setDeploymentStatus({});
+    setDeploymentLog([]);
+    setIsDeploymentModalOpen(true);
+  };
+
+  // Function to handle deployment of the algorithm
+  const handleDeployAlgorithm = async () => {
+    if (!selectedAlgorithm) {
+      setGeminiOutput(prev => [...prev, "Error: No algorithm selected to deploy."]);
+      return;
+    }
+
+    if (deploymentAccounts.length === 0) {
+      setDeploymentLog(prev => [...prev, "Error: No accounts selected for deployment."]);
+      return;
+    }
+
+    setIsDeploying(true);
+    setDeploymentLog(prev => [...prev, `Starting deployment of "${selectedAlgorithm.name}" to ${deploymentAccounts.length} account(s)...`]);
+
+    // Initialize status for all accounts
+    const initialStatus: Record<string, 'pending' | 'success' | 'failed'> = {};
+    deploymentAccounts.forEach(accountId => {
+      initialStatus[accountId] = 'pending';
+    });
+    setDeploymentStatus(initialStatus);
+
+    try {
+      // Process each account deployment sequentially
+      for (const accountId of deploymentAccounts) {
+        setDeploymentLog(prev => [...prev, `Deploying to account ${accountId}...`]);
+        
+        try {
+          // TODO: Replace with actual API call
+          await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate API delay
+          
+          // Simulate successful deployment
+          setDeploymentStatus(prev => ({...prev, [accountId]: 'success'}));
+          setDeploymentLog(prev => [...prev, `Successfully deployed to account ${accountId}.`]);
+        } catch (error) {
+          console.error(`Error deploying to account ${accountId}:`, error);
+          setDeploymentStatus(prev => ({...prev, [accountId]: 'failed'}));
+          setDeploymentLog(prev => [...prev, `Failed to deploy to account ${accountId}: ${error instanceof Error ? error.message : String(error)}`]);
+        }
+      }
+
+      setDeploymentLog(prev => [...prev, `Deployment process completed.`]);
+      setGeminiOutput(prev => [...prev, `Algorithm "${selectedAlgorithm.name}" deployment processed to ${deploymentAccounts.length} account(s).`]);
+    } catch (error) {
+      console.error('Error in deployment process:', error);
+      setDeploymentLog(prev => [...prev, `Deployment process error: ${error instanceof Error ? error.message : String(error)}`]);
+    } finally {
+      setIsDeploying(false);
+    }
+  };
+
+  // Function to extract parameters from algorithm code
+  const extractAlgorithmParameters = (code: string): Record<string, string> => {
+    const params: Record<string, string> = {};
+    
+    // Look for parameters in comments or variable declarations
+    const paramRegex = /# *Parameter: *([a-zA-Z0-9_]+) *= *([^#\n]*)/g;
+    let match;
+    
+    while ((match = paramRegex.exec(code)) !== null) {
+      if (match[1] && match[2]) {
+        params[match[1]] = match[2].trim();
+      }
+    }
+    
+    return params;
+  };
+
+  // Update deployment parameters when algorithm changes
+  useEffect(() => {
+    if (selectedAlgorithm) {
+      const params = extractAlgorithmParameters(selectedAlgorithm.code);
+      setDeploymentParameters(params);
+    }
+  }, [selectedAlgorithm]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
@@ -580,6 +683,14 @@ const AlgorithmsView: React.FC = () => {
                 title="Delete Selected Algorithm"
               >
                 Delete
+              </button>
+              <button
+                onClick={openDeploymentModal}
+                disabled={isLoadingAlgorithms || !sessionToken}
+                className="bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out disabled:opacity-50"
+                title="Deploy Algorithm to Accounts"
+              >
+                Deploy
               </button>
             </div>
           </SectionPanel>
@@ -831,6 +942,156 @@ const AlgorithmsView: React.FC = () => {
         {/* Console Output (shown in both tabs) */}
         <ConsoleOutput lines={geminiOutput} title="Console Output" height="150px" />
       </div>
+
+      {/* Deployment Modal */}
+      {isDeploymentModalOpen && selectedAlgorithm && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-white">Deploy Algorithm: {selectedAlgorithm.name}</h2>
+                <button 
+                  onClick={() => setIsDeploymentModalOpen(false)}
+                  className="text-gray-400 hover:text-white"
+                  disabled={isDeploying}
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-300 mb-2">Select Accounts</h3>
+                <div className="max-h-48 overflow-y-auto border border-gray-700 rounded-md p-2 mb-2">
+                  {userAccounts.length > 0 ? (
+                    userAccounts.map(account => (
+                      <div key={account.id} className="flex items-center space-x-2 py-2 border-b border-gray-700">
+                        <input
+                          type="checkbox"
+                          id={`account-${account.id}`}
+                          checked={deploymentAccounts.includes(account.id.toString())}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setDeploymentAccounts(prev => [...prev, account.id.toString()]);
+                            } else {
+                              setDeploymentAccounts(prev => prev.filter(id => id !== account.id.toString()));
+                            }
+                          }}
+                          className="text-blue-600 rounded border-gray-600 focus:ring-blue-500"
+                          disabled={isDeploying}
+                        />
+                        <label htmlFor={`account-${account.id}`} className="text-gray-300">
+                          {account.name} ({account.id})
+                          {account.id === selectedAccountId && " (Currently Selected)"}
+                        </label>
+                        {deploymentStatus[account.id.toString()] && (
+                          <span className={`text-xs px-2 py-1 rounded ml-auto ${
+                            deploymentStatus[account.id.toString()] === 'success' ? 'bg-green-900 text-green-300' : 
+                            deploymentStatus[account.id.toString()] === 'failed' ? 'bg-red-900 text-red-300' : 
+                            'bg-yellow-900 text-yellow-300'
+                          }`}>
+                            {deploymentStatus[account.id.toString()].toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-400 p-2">No accounts available. Connect to a broker first.</p>
+                  )}
+                </div>
+                <div className="flex items-center space-x-2 mb-4">
+                  <button
+                    onClick={() => setDeploymentAccounts(userAccounts.map(a => a.id.toString()))}
+                    className="text-sm text-blue-400 hover:text-blue-300"
+                    disabled={isDeploying || userAccounts.length === 0}
+                  >
+                    Select All
+                  </button>
+                  <button
+                    onClick={() => setDeploymentAccounts([])}
+                    className="text-sm text-red-400 hover:text-red-300"
+                    disabled={isDeploying || deploymentAccounts.length === 0}
+                  >
+                    Clear All
+                  </button>
+                  <span className="text-gray-400 text-sm ml-auto">
+                    {deploymentAccounts.length} of {userAccounts.length} accounts selected
+                  </span>
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-300 mb-2">Algorithm Parameters</h3>
+                {Object.keys(deploymentParameters).length > 0 ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {Object.entries(deploymentParameters).map(([key, value]) => (
+                      <div key={key} className="mb-2">
+                        <label htmlFor={`param-${key}`} className="block text-sm font-medium text-gray-400 mb-1">
+                          {key}
+                        </label>
+                        <input
+                          type="text"
+                          id={`param-${key}`}
+                          value={value}
+                          onChange={(e) => setDeploymentParameters(prev => ({...prev, [key]: e.target.value}))}
+                          className="w-full bg-gray-700 text-white p-2 rounded-md border border-gray-600 focus:ring-sky-500 focus:border-sky-500"
+                          disabled={isDeploying}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 p-2">No parameters detected in this algorithm.</p>
+                )}
+              </div>
+
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-300 mb-2">Deployment Log</h3>
+                <div className="bg-gray-900 rounded-md p-3 h-48 overflow-y-auto text-sm font-mono">
+                  {deploymentLog.length > 0 ? (
+                    deploymentLog.map((log, index) => (
+                      <div key={index} className="pb-1 border-b border-gray-800 mb-1">
+                        <span className="text-gray-500">[{new Date().toLocaleTimeString()}]</span>{' '}
+                        <span className={`${
+                          log.includes('Error') || log.includes('Failed') ? 'text-red-400' :
+                          log.includes('Success') ? 'text-green-400' : 'text-gray-300'
+                        }`}>
+                          {log}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-gray-500">Deployment log will appear here...</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3">
+                <button
+                  onClick={() => setIsDeploymentModalOpen(false)}
+                  className="bg-gray-600 hover:bg-gray-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out"
+                  disabled={isDeploying}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeployAlgorithm}
+                  disabled={isDeploying || deploymentAccounts.length === 0}
+                  className="bg-purple-600 hover:bg-purple-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out disabled:opacity-50 flex items-center"
+                >
+                  {isDeploying ? (
+                    <>
+                      <LoadingSpinner size="sm" className="mr-2" />
+                      Deploying...
+                    </>
+                  ) : (
+                    'Deploy Algorithm'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

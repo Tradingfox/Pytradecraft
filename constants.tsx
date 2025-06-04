@@ -32,6 +32,12 @@ const RocketLaunchIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const ServerIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 17.25v-.228a4.5 4.5 0 00-.12-1.03l-2.268-9.64a3.375 3.375 0 00-3.285-2.602H7.923a3.375 3.375 0 00-3.285 2.602l-2.268 9.64a4.5 4.5 0 00-.12 1.03v.228m19.5 0a3 3 0 01-3 3H5.25a3 3 0 01-3-3m19.5 0a3 3 0 00-3-3H5.25a3 3 0 00-3 3m16.5 0h.008v.008h-.008v-.008zm-3 0h.008v.008h-.008v-.008z" />
+  </svg>
+);
+
 const CogIcon = (props: React.SVGProps<SVGSVGElement>) => (
  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" {...props}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M10.343 3.94c.09-.542.56-.94 1.11-.94h1.093c.55 0 1.02.398 1.11.94l.149.894c.07.424.384.764.78.93s.844.17 1.25.07l.86-.215c.527-.132 1.06.196 1.262.724l.54 1.08c.203.407.098.91-.247 1.226l-.648.578c-.32.285-.468.716-.418 1.135l.076.625c.05.42.05.844 0 1.264l-.076.625c-.05.42-.1.85.27 1.135l.648.578c.345.316.45.82.247 1.226l-.54 1.08c-.202.429-.735.756-1.262.724l-.86-.215c-.406-.1-.847-.06-1.25.07s-.71.505-.78.93l-.149.894c-.09.542-.56.94-1.11.94h-1.093c-.55 0-1.02-.398-1.11-.94l-.149-.894c-.07-.424-.384-.764-.78-.93s-.844-.17-1.25-.07l-.86.215c-.527-.132-1.06.196-1.262.724l-.54-1.08c-.203-.407-.098-.91.247-1.226l.648-.578c.32-.285.468.716-.418-1.135l-.075-.625c-.05-.42-.05-.844 0-1.264l.075-.625c.05-.42.1-.85-.27-1.135l-.648-.578c-.345-.316-.45-.82-.247-1.226l.54-1.08c.202-.428.735-.756 1.262-.724l.86.215c.406.1.847.06 1.25-.07s.71-.505.78-.93l.15-.894z" />
@@ -66,7 +72,8 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'trading', label: 'Trading', path: '/trading', icon: (props) => <ChartIcon {...props} /> },
   { id: 'charts', label: 'Charts', path: '/charts', icon: (props) => <ChartCandlestickIcon {...props} /> },
   { id: 'marketdata', label: 'Market Data', path: '/marketdata', icon: (props) => <PresentationChartLineIcon {...props} /> },
-  { id: 'deployments', label: 'Broker Connect', path: '/deployments', icon: (props) => <RocketLaunchIcon {...props} /> }, // Renamed for clarity
+  { id: 'broker-connect', label: 'Broker Connect', path: '/deployments', icon: (props) => <RocketLaunchIcon {...props} /> },
+  { id: 'deployments', label: 'Algo Deployments', path: '/deployments/manager', icon: (props) => <ServerIcon {...props} /> },
   { id: 'settings', label: 'Settings', path: '/settings', icon: (props) => <CogIcon {...props} /> },
 ];
 

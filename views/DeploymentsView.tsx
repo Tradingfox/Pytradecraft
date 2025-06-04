@@ -7,6 +7,7 @@ import { BrokerType, ProjectXAuthMode } from '../types';
 import { PROJECTX_DEFAULT_APP_ID } from '../constants.tsx';
 import { PROJECTX_API_BASE_URL } from '../constants.ts';
 import { useScrollControl, usePreventScrollJump } from '../utils/scrollHelper';
+import { Link } from 'react-router-dom';
 
 const DeploymentsView: React.FC = () => {
   const {
@@ -141,6 +142,21 @@ const DeploymentsView: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {isAuthenticated && (
+        <div className="bg-gradient-to-r from-indigo-900 to-purple-900 border border-indigo-700 rounded-lg p-4 mb-4 flex justify-between items-center">
+          <div>
+            <h2 className="text-xl font-bold text-white">Algorithm Deployments</h2>
+            <p className="text-indigo-200 mt-1">Deploy and manage your trading algorithms across multiple accounts.</p>
+          </div>
+          <Link to="/deployments/manager" className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out flex items-center">
+            <span>Go to Deployments Manager</span>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 ml-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </Link>
+        </div>
+      )}
+
       <SectionPanel title="Broker Connection Management">
         <div className="mb-4">
           <label htmlFor="brokerSelect" className="block text-sm font-medium text-gray-300 mb-1">Select Broker</label>

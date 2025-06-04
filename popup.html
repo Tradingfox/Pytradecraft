@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Dashboard Data Extension</title>
+  <style>
+    body {
+      width: 320px;
+      height: 320px;
+      padding: 10px;
+      font-family: Arial, sans-serif;
+      background-color: #f5f5f5;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .header {
+      font-size: 18px;
+      font-weight: bold;
+      padding-bottom: 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    .section {
+      background-color: white;
+      border-radius: 4px;
+      padding: 10px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .section-title {
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+    .status {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    .status-active {
+      background-color: #4CAF50;
+    }
+    .status-inactive {
+      background-color: #F44336;
+    }
+    button {
+      background-color: #4285F4;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover {
+      background-color: #3367D6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">Dashboard Data Extension</div>
+    
+    <div class="section">
+      <div class="section-title">Extension Status</div>
+      <div class="status">
+        <span>Background Service</span>
+        <span class="status-indicator status-active" id="background-status"></span>
+      </div>
+      <div class="status">
+        <span>Content Script</span>
+        <span class="status-indicator status-active" id="content-status"></span>
+      </div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Active Tabs</div>
+      <div id="active-tabs-count">0 active tabs</div>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">Actions</div>
+      <button id="refresh-data">Refresh Data</button>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html> 

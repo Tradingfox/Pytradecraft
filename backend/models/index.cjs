@@ -1,14 +1,17 @@
-const sequelize = require('../config/database');
-const User = require('./user');
-const { KnowledgeGraphNode, KnowledgeGraphEdge } = require('./knowledgeGraph');
-const { Algorithm, BacktestResult } = require('./algorithm');
-const sampleStrategies = require('./sampleStrategies');
+const sequelize = require('../config/database.cjs');
+const User = require('./user.cjs');
+const { KnowledgeGraphNode, KnowledgeGraphEdge } = require('./knowledgeGraph.cjs');
+const { Algorithm, BacktestResult } = require('./algorithm.cjs');
+const { Deployment, DeploymentLog } = require('./deployment.cjs');
+const sampleStrategies = require('./sampleStrategies/index.cjs');
 
 // Associations are defined in the model files
 // User.hasMany(Algorithm) - defined in algorithm.js
 // Algorithm.belongsTo(User) - defined in algorithm.js
 // User.hasMany(KnowledgeGraphNode) - defined in knowledgeGraph.js
 // KnowledgeGraphNode.belongsTo(User) - defined in knowledgeGraph.js
+// User.hasMany(Deployment) - defined in deployment.js
+// Deployment.belongsTo(User) - defined in deployment.js
 
 const db = {
   sequelize,
@@ -18,6 +21,8 @@ const db = {
   KnowledgeGraphEdge,
   Algorithm,
   BacktestResult,
+  Deployment,
+  DeploymentLog,
   sampleStrategies
 };
 
@@ -38,4 +43,4 @@ db.syncDb = async (options = {}) => {
   }
 };
 
-module.exports = db;
+module.exports = db; 

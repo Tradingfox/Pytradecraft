@@ -121,13 +121,19 @@ export type HubConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 
 
 // Market Data Stream Types
 export interface QuoteData {
-  contractId: string; // Assuming contractId is part of the data or known by context
+  contractId: string;
   timestamp: string;
+  symbol?: string;
+  lastPrice?: number;
+  // Support both old and new field names
   bidPrice?: number;
-  bidSize?: number;
   askPrice?: number;
+  bestBid?: number;
+  bestAsk?: number;
+  bidSize?: number;
   askSize?: number;
-  lastPrice?: number; // Sometimes included
+  volume?: number;
+  lastUpdated?: string;
 }
 
 export interface MarketTradeData {
@@ -1428,6 +1434,72 @@ export interface ChartMemorySettings {
   };
   history: {
     lastViewed: { contractId: string, timestamp: string }[]; // Recently viewed charts
+  };
+}
+
+// Deployment related types
+export interface DeploymentParams {
+  [key: string]: string | number | boolean;
+}
+
+export interface AlgorithmDeployment {
+  id: string;
+  algorithmId: string;
+  algorithmName: string;
+  accountId: string | number;
+  accountName?: string;
+  status: 'pending' | 'running' | 'paused' | 'stopped' | 'error' | 'completed';
+  parameters: DeploymentParams;
+  createdAt: string;
+  updatedAt: string;
+  lastRunAt?: string;
+  errorMessage?: string;
+}
+
+export interface DeploymentStatus {
+  id: string;
+  status: 'pending' | 'running' | 'paused' | 'stopped' | 'error' | 'completed';
+  metrics?: {
+    orders: number;
+    trades: number;
+    profitLoss: number;
+    runningTime: string; // Duration string
+  };
+  lastEvent?: {
+    type: string;
+    message: string;
+    timestamp: string;
+  };
+  resourceUsage?: {
+    cpu: number; // Percentage
+    memory: number; // MB
+    network: number; // KB/s
+  };
+  updatedAt: string;
+}
+
+export interface DeploymentLog {
+  deploymentId: string;
+  timestamp: string;
+  level: 'info' | 'warning' | 'error' | 'debug';
+  message: string;
+}
+
+export interface BulkDeploymentRequest {
+  algorithmId: string;
+  accountIds: (string | number)[];
+  parameters: DeploymentParams;
+}
+
+export interface BulkDeploymentResponse {
+  successCount: number;
+  failureCount: number;
+  deployments: {
+    [accountId: string]: {
+      success: boolean;
+      deploymentId?: string;
+      errorMessage?: string;
+    };
   };
 }
 
