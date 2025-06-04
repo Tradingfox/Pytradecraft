@@ -772,12 +772,39 @@ export const searchTrades = (
         contractId?: string,
         includeVoided?: boolean,
         orderId?: string | number,
-        limit?: number,
-        offset?: number
+        limit?: number, // Existing limit, could be used for page size
+        page?: number,   // New: page number for pagination
+        // `offset` could also be a direct param if APIs prefer it over `page`
+        // For now, we'll derive offset from page and limit if the API needs offset.
     }
 ): Promise<TradeSearchResponse> => {
     const endpoint = broker === 'topstepx' ? '/api/Trade/search' : '/trade/search';
-    return makeApiRequest<TradeSearchResponse>(broker, endpoint, 'POST', params, token);
+
+    let apiParams: any = { ...params };
+
+    // Handle pagination parameters
+    // If page and limit are provided, calculate offset if needed, or pass page/limit directly
+    // This assumes broker APIs might take 'limit' and 'offset', or 'limit' and 'page'
+    // Defaulting to sending 'limit' and 'offset' if page is given.
+    if (typeof params.page === 'number' && params.page > 0 && typeof params.limit === 'number' && params.limit > 0) {
+        apiParams.limit = params.limit; // Ensure limit is passed
+        apiParams.offset = (params.page - 1) * params.limit; // Calculate offset
+        // delete apiParams.page; // Remove page if API expects offset, otherwise keep if API uses page
+                               // For now, let's assume TopStepX and ProjectX might use limit/offset
+                               // If they used 'page' directly, we would not add 'offset' and ensure 'page' is passed.
+    } else if (typeof params.limit === 'number') {
+        apiParams.limit = params.limit; // Use provided limit as is, no pagination if page is not set
+    }
+    // If only page is set but not limit, it's ambiguous, so we might ignore page or use a default limit.
+    // For now, limit is required for page-based pagination to work.
+
+    // For TopstepX, it's known that it uses `limit` and `offset`.
+    // For ProjectX, the existing code uses `limit`. If it uses `offset`, this structure is fine.
+    // If ProjectX uses `pageNumber` instead of `offset`, we'd adjust `apiParams.pageNumber = params.page; delete apiParams.offset;`
+
+    console.log(`searchTrades for ${broker}, params sent to makeApiRequest:`, apiParams);
+
+    return makeApiRequest<TradeSearchResponse>(broker, endpoint, 'POST', apiParams, token);
 };
 
 // --- TopstepX Trade History Functions ---

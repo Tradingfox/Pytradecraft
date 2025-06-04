@@ -394,6 +394,11 @@ export interface TradeSearchResponse {
     success: boolean;
     errorCode: number;
     errorMessage: string | null;
+    // Pagination fields (optional, as they depend on broker API)
+    totalItems?: number;
+    totalPages?: number;
+    currentPage?: number;
+    limit?: number; // The limit that was used for the request
 }
 export interface RetrieveBarsResponse {
     bars: Bar[];

@@ -28,6 +28,11 @@ const AlgorithmsView: React.FC = () => {
   const [currentCode, setCurrentCode] = useState<string>(DEFAULT_ALGORITHM_CODE);
   const [isLoadingAlgorithms, setIsLoadingAlgorithms] = useState<boolean>(false);
   const [algorithmError, setAlgorithmError] = useState<string | null>(null);
+  // Pagination state for algorithms
+  const [currentPageAlgos, setCurrentPageAlgos] = useState<number>(1);
+  const [totalPagesAlgos, setTotalPagesAlgos] = useState<number>(0);
+  const [totalAlgorithms, setTotalAlgorithms] = useState<number>(0);
+  const [algoLimitPerPage, setAlgoLimitPerPage] = useState<number>(5); // Smaller limit for easier UI testing
 
   // UI state
   const [activeTab, setActiveTab] = useState<'code' | 'backtest'>('code');
@@ -41,25 +46,31 @@ const AlgorithmsView: React.FC = () => {
   const [hasMemoryContext, setHasMemoryContext] = useState<boolean>(false);
 
   // Backtest state
-  const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]); // This seems to be for *newly run* backtests from BacktestPanel
-  // selectedBacktestResult is already here, it will be repurposed for selecting EITHER a new run or a saved one.
+  const [backtestResults, setBacktestResults] = useState<BacktestResult[]>([]);
   const [selectedBacktestResult, setSelectedBacktestResult] = useState<BacktestResult | null>(null);
-  const [savedBacktests, setSavedBacktests] = useState<BacktestResult[]>([]); // For listing backtests from API
+  const [savedBacktests, setSavedBacktests] = useState<BacktestResult[]>([]);
   const [isLoadingBacktests, setIsLoadingBacktests] = useState<boolean>(false);
   const [backtestListError, setBacktestListError] = useState<string | null>(null);
   const [selectedSavedBacktest, setSelectedSavedBacktest] = useState<BacktestResult | null>(null);
+  // Pagination state for saved backtests
+  const [currentBacktestPage, setCurrentBacktestPage] = useState<number>(1);
+  const [totalBacktestPages, setTotalBacktestPages] = useState<number>(0);
+  const [totalSavedBacktestsCount, setTotalSavedBacktestsCount] = useState<number>(0);
+  const [backtestsPerPage, setBacktestsPerPage] = useState<number>(5);
 
 
-  const fetchAlgorithms = useCallback(async () => {
+  const fetchAlgorithms = useCallback(async (page: number, limit: number) => {
     if (!sessionToken) {
       setAlgorithmError("Session token is not available. Cannot fetch algorithms.");
-      // setGeminiOutput(prev => [...prev, "Error: Session token not available. Please log in."]); // Avoid direct geminiOutput update here
+      setAlgorithms([]); // Clear algorithms if no token
+      setTotalPagesAlgos(0);
+      setTotalAlgorithms(0);
       return;
     }
     setIsLoadingAlgorithms(true);
     setAlgorithmError(null);
     try {
-      const response = await fetch('/api/algorithms', {
+      const response = await fetch(`/api/algorithms?page=${page}&limit=${limit}`, {
         headers: {
           'Authorization': `Bearer ${sessionToken}`,
         },
@@ -68,32 +79,61 @@ const AlgorithmsView: React.FC = () => {
         const errorData = await response.json();
         throw new Error(errorData.error || `Failed to fetch algorithms: ${response.statusText}`);
       }
-      const data: Algorithm[] = await response.json();
-      setAlgorithms(data);
-      // setGeminiOutput(prev => [...prev, "Algorithms loaded successfully."]); // Avoid direct geminiOutput update here
+      const data = await response.json(); // Expects { algorithms: [], totalItems: number, totalPages: number, currentPage: number }
+      setAlgorithms(data.algorithms);
+      setTotalAlgorithms(data.totalItems);
+      setTotalPagesAlgos(data.totalPages);
+      setCurrentPageAlgos(data.currentPage);
+      if (data.algorithms.length === 0 && data.currentPage > 1) { // If current page has no items (e.g. after delete)
+        setCurrentPageAlgos(Math.max(1, data.currentPage - 1)); // Go to previous page or page 1
+      }
+
     } catch (error) {
       console.error('Error fetching algorithms:', error);
       const errMsg = error instanceof Error ? error.message : String(error);
       setAlgorithmError(errMsg);
-      // setGeminiOutput(prev => [...prev, `Error fetching algorithms: ${errMsg}`]); // Avoid direct geminiOutput update here
+      setAlgorithms([]);
+      setTotalPagesAlgos(0);
+      setTotalAlgorithms(0);
     } finally {
       setIsLoadingAlgorithms(false);
     }
   }, [sessionToken]);
 
+  // Initial fetch and re-fetch when currentPageAlgos changes (but not algoLimitPerPage to avoid loop with fetchAlgorithms)
   useEffect(() => {
-    fetchAlgorithms();
-  }, [fetchAlgorithms]);
+    if (sessionToken) { // Only fetch if session token is available
+        fetchAlgorithms(currentPageAlgos, algoLimitPerPage);
+    } else {
+        // Clear data if no session token
+        setAlgorithms([]);
+        setTotalPagesAlgos(0);
+        setTotalAlgorithms(0);
+        setAlgorithmError("Session token not available. Please log in.");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionToken, currentPageAlgos, algoLimitPerPage]);
 
-  const fetchSavedBacktests = useCallback(async (algorithmId: string) => {
+
+  const fetchSavedBacktests = useCallback(async (algorithmId: string, page: number, limit: number) => {
     if (!sessionToken) {
-      setBacktestListError("Session token not available. Cannot fetch saved backtests.");
+      setBacktestListError("Session token not available.");
+      setSavedBacktests([]);
+      setTotalBacktestPages(0);
+      setTotalSavedBacktestsCount(0);
       return;
+    }
+    if (!algorithmId) {
+        setBacktestListError("No algorithm selected to fetch backtests for.");
+        setSavedBacktests([]);
+        setTotalBacktestPages(0);
+        setTotalSavedBacktestsCount(0);
+        return;
     }
     setIsLoadingBacktests(true);
     setBacktestListError(null);
     try {
-      const response = await fetch(`/api/algorithms/${algorithmId}/backtests`, {
+      const response = await fetch(`/api/algorithms/${algorithmId}/backtests?page=${page}&limit=${limit}`, {
         headers: {
           'Authorization': `Bearer ${sessionToken}`,
         },
@@ -102,34 +142,62 @@ const AlgorithmsView: React.FC = () => {
         const errorData = await response.json();
         throw new Error(errorData.error || `Failed to fetch saved backtests: ${response.statusText}`);
       }
-      const data: BacktestResult[] = await response.json();
-      setSavedBacktests(data);
+      const data = await response.json(); // Expects { backtests: [], totalItems: number, totalPages: number, currentPage: number }
+      setSavedBacktests(data.backtests);
+      setTotalSavedBacktestsCount(data.totalItems);
+      setTotalBacktestPages(data.totalPages);
+      setCurrentBacktestPage(data.currentPage);
+       if (data.backtests.length === 0 && data.currentPage > 1) {
+        setCurrentBacktestPage(Math.max(1, data.currentPage - 1));
+      }
     } catch (error) {
       console.error('Error fetching saved backtests:', error);
       const errMsg = error instanceof Error ? error.message : String(error);
       setBacktestListError(errMsg);
+      setSavedBacktests([]);
+      setTotalBacktestPages(0);
+      setTotalSavedBacktestsCount(0);
     } finally {
       setIsLoadingBacktests(false);
     }
   }, [sessionToken]);
 
+  // Effect for fetching saved backtests when selected algorithm or backtest page changes
   useEffect(() => {
     if (selectedAlgorithm) {
-      setCurrentCode(selectedAlgorithm.code);
-      setGeminiOutput([`Algorithm "${selectedAlgorithm.name}" loaded.`]);
-      setAlgorithmError(null);
-      fetchSavedBacktests(selectedAlgorithm.id);
-      setSavedBacktests([]);
-      setBacktestListError(null);
-      setSelectedSavedBacktest(null); // Clear selected saved backtest when main algorithm changes
+      setCurrentCode(selectedAlgorithm.code); // Update code editor
+      setGeminiOutput([`Algorithm "${selectedAlgorithm.name}" loaded.`]); // Update console
+      setAlgorithmError(null); // Clear algo list errors
+
+      // Reset backtest pagination and fetch first page for new algo
+      setCurrentBacktestPage(1);
+      fetchSavedBacktests(selectedAlgorithm.id, 1, backtestsPerPage);
+
+      setSavedBacktests([]); // Clear previous algo's backtests immediately
+      setBacktestListError(null); // Clear previous errors
+      setSelectedSavedBacktest(null); // Clear selected saved backtest detail view
     } else {
+      // Clear states if no algorithm is selected
       setCurrentCode(DEFAULT_ALGORITHM_CODE);
       setSavedBacktests([]);
       setBacktestListError(null);
-      setSelectedSavedBacktest(null); // Clear selected saved backtest
-      // Do not clear all geminiOutput here to preserve other messages.
+      setSelectedSavedBacktest(null);
+      setCurrentBacktestPage(1);
+      setTotalBacktestPages(0);
+      setTotalSavedBacktestsCount(0);
     }
-  }, [selectedAlgorithm, fetchSavedBacktests]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAlgorithm]); // Removed fetchSavedBacktests, backtestsPerPage from deps to avoid loop with page reset
+
+  // Effect to fetch saved backtests when currentBacktestPage changes, only if an algorithm is selected
+  useEffect(() => {
+    if (selectedAlgorithm) {
+      fetchSavedBacktests(selectedAlgorithm.id, currentBacktestPage, backtestsPerPage);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentBacktestPage]); // Removed selectedAlgorithm from here to let the above effect handle initial load/reset
+                               // Also removed backtestsPerPage and fetchSavedBacktests to avoid potential loops/re-fetches
+                               // if they change identity but not value. Page change is the primary trigger.
 
   const handleSelectAlgorithm = (algo: Algorithm) => {
     setSelectedAlgorithm(algo);
@@ -165,9 +233,13 @@ const AlgorithmsView: React.FC = () => {
         throw new Error(errorData.error || `Failed to create algorithm: ${response.statusText}`);
       }
       const createdAlgorithm: Algorithm = await response.json();
-      await fetchAlgorithms(); // Refresh the list
-      // Or, for optimistic update: setAlgorithms(prev => [createdAlgorithm, ...prev]);
-      setSelectedAlgorithm(createdAlgorithm);
+      // After creating, fetch the page where the new algorithm might appear (e.g., page 1 or current page)
+      // Or better, the API could return the created algorithm and we add it, then refetch current page if full.
+      // For simplicity now, just refetch current page or page 1. Let's go to page 1 to see the newest.
+      if (currentPageAlgos !== 1) setCurrentPageAlgos(1); // This will trigger the useEffect above
+      else await fetchAlgorithms(1, algoLimitPerPage); // If already on page 1, manually refetch
+
+      setSelectedAlgorithm(createdAlgorithm); // Select the new one
       // setCurrentCode(createdAlgorithm.code); // This is handled by useEffect on selectedAlgorithm change
       setGeminiOutput(prev => [...prev, `Successfully created "${createdAlgorithm.name}". Select it to start editing.`]);
     } catch (error) {
@@ -217,8 +289,8 @@ const AlgorithmsView: React.FC = () => {
       const updatedAlgorithm: Algorithm = await response.json();
       await fetchAlgorithms(); // Refresh the list
       // Or, for optimistic update:
-      // setAlgorithms(prev => prev.map(a => a.id === updatedAlgorithm.id ? updatedAlgorithm : a));
-      // setSelectedAlgorithm(updatedAlgorithm); // Keep current selection, data will refresh
+      // setAlgorithms(prev => prev.map(a => a.id === updatedAlgorithm.id ? updatedAlgorithm : a)); // Optimistic update
+      setSelectedAlgorithm(updatedAlgorithm); // Re-set to trigger useEffect if needed, or just update fields
       setGeminiOutput(prev => [...prev, `Algorithm "${updatedAlgorithm.name}" saved successfully.`]);
     } catch (error) {
       console.error('Error saving algorithm:', error);
@@ -260,7 +332,9 @@ const AlgorithmsView: React.FC = () => {
       }
 
       setGeminiOutput(prev => [...prev, `Algorithm "${algorithmToDelete?.name || algorithmId}" deleted successfully.`]);
-      await fetchAlgorithms(); // Refresh the list
+      // After deleting, refetch the current page. The API might return an empty list for this page
+      // if it was the last item, fetchAlgorithms handles setting to previous page if current becomes empty.
+      await fetchAlgorithms(currentPageAlgos, algoLimitPerPage);
 
       if (selectedAlgorithm?.id === algorithmId) {
         setSelectedAlgorithm(null);
@@ -286,9 +360,15 @@ const AlgorithmsView: React.FC = () => {
     setSelectedBacktestResult(newBacktestResult); // This shows the NEWLY RUN backtest details
     setSelectedSavedBacktest(null); // Clear any selected SAVED backtest to avoid confusion
 
-    if (newBacktestResult.algorithmId) {
-      fetchSavedBacktests(newBacktestResult.algorithmId);
-    } else {
+    if (newBacktestResult.algorithmId && selectedAlgorithm?.id === newBacktestResult.algorithmId) {
+      // Refresh to the first page of backtests for the current algorithm
+      setCurrentBacktestPage(1); // This will trigger the useEffect to fetch page 1
+      fetchSavedBacktests(newBacktestResult.algorithmId, 1, backtestsPerPage);
+    } else if (newBacktestResult.algorithmId) {
+      // If the backtest was for a different algo (not currently selected), just log or optionally fetch for it
+      console.log("Backtest completed for an algorithm not currently selected in view. Not auto-refreshing list for current algo.");
+    }
+     else {
       setBacktestListError("Could not refresh backtests: Algorithm ID missing from new backtest result.");
     }
   };
@@ -419,10 +499,10 @@ const AlgorithmsView: React.FC = () => {
           {!isLoadingAlgorithms && !algorithmError && algorithms.length === 0 && sessionToken && (
             <p className="text-gray-400 text-center">No algorithms yet. Create one!</p>
           )}
-          {!sessionToken && !isLoadingAlgorithms && (
+          {!sessionToken && !isLoadingAlgorithms && algorithms.length === 0 && ( // Show only if list is also empty
              <p className="text-yellow-400 text-sm p-2 bg-yellow-900 rounded-md">Session token not found. Please log in to manage algorithms.</p>
           )}
-          <div className="max-h-96 overflow-y-auto space-y-2 custom-scrollbar pr-2">
+          <div className="max-h-80 overflow-y-auto space-y-2 custom-scrollbar pr-2"> {/* Adjusted max-h */}
             {algorithms.map(algo => (
               <div
                 key={algo.id}
@@ -447,6 +527,28 @@ const AlgorithmsView: React.FC = () => {
               </div>
             ))}
           </div>
+          {/* Pagination Controls */}
+          {totalPagesAlgos > 0 && (
+            <div className="mt-4 flex justify-between items-center text-sm text-gray-300">
+              <button
+                onClick={() => setCurrentPageAlgos(prev => Math.max(1, prev - 1))}
+                disabled={currentPageAlgos <= 1 || isLoadingAlgorithms}
+                className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <span>
+                Page {currentPageAlgos} of {totalPagesAlgos} (Total: {totalAlgorithms})
+              </span>
+              <button
+                onClick={() => setCurrentPageAlgos(prev => Math.min(totalPagesAlgos, prev + 1))}
+                disabled={currentPageAlgos >= totalPagesAlgos || isLoadingAlgorithms}
+                className="px-3 py-1 bg-gray-600 hover:bg-gray-500 rounded disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </SectionPanel>
         {selectedAlgorithm && (
           <SectionPanel title={`Details: ${selectedAlgorithm.name}`}>
@@ -492,14 +594,14 @@ const AlgorithmsView: React.FC = () => {
               <p className="text-gray-400 text-center">No saved backtests for this algorithm.</p>
             )}
             {!isLoadingBacktests && !backtestListError && savedBacktests.length > 0 && (
-              <div className="max-h-60 overflow-y-auto space-y-2 custom-scrollbar pr-2">
-                {savedBacktests.sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime()).map(bt => (
+              <div className="max-h-48 overflow-y-auto space-y-2 custom-scrollbar pr-2"> {/* Adjusted max-h */}
+                {savedBacktests.map(bt => ( // Data is already sorted by backend
                   <div
                     key={bt.id}
                     onClick={() => {
                       setSelectedSavedBacktest(bt);
-                      setSelectedBacktestResult(null); // Clear any selected newly run backtest
-                      setActiveTab('backtest'); // Switch to backtest tab to view details
+                      setSelectedBacktestResult(null);
+                      setActiveTab('backtest');
                     }}
                     className={`p-2 rounded-md cursor-pointer transition-colors ${selectedSavedBacktest?.id === bt.id ? 'bg-sky-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}
                   >
@@ -510,6 +612,28 @@ const AlgorithmsView: React.FC = () => {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+             {/* Pagination Controls for Saved Backtests */}
+            {totalBacktestPages > 0 && (
+              <div className="mt-3 flex justify-between items-center text-xs text-gray-400">
+                <button
+                  onClick={() => setCurrentBacktestPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentBacktestPage <= 1 || isLoadingBacktests}
+                  className="px-2 py-1 bg-gray-600 hover:bg-gray-500 rounded disabled:opacity-50"
+                >
+                  Prev
+                </button>
+                <span>
+                  Page {currentBacktestPage} of {totalBacktestPages} ({totalSavedBacktestsCount} results)
+                </span>
+                <button
+                  onClick={() => setCurrentBacktestPage(prev => Math.min(totalBacktestPages, prev + 1))}
+                  disabled={currentBacktestPage >= totalBacktestPages || isLoadingBacktests}
+                  className="px-2 py-1 bg-gray-600 hover:bg-gray-500 rounded disabled:opacity-50"
+                >
+                  Next
+                </button>
               </div>
             )}
           </SectionPanel>
