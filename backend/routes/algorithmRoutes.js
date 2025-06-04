@@ -27,11 +27,35 @@ router.post('/', authMiddleware, async (req, res) => {
   }
 });
 
-// GET /api/algorithms - List algorithms for the authenticated user
+// GET /api/algorithms - List algorithms for the authenticated user with pagination
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const algorithms = await Algorithm.findAll({ where: { UserId: req.user.id } });
-    res.json(algorithms);
+    let page = parseInt(req.query.page, 10);
+    let limit = parseInt(req.query.limit, 10);
+
+    // Default values if page or limit are not provided or invalid
+    if (isNaN(page) || page < 1) {
+      page = 1;
+    }
+    if (isNaN(limit) || limit < 1) {
+      limit = 10; // Default limit
+    }
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await Algorithm.findAndCountAll({
+      where: { UserId: req.user.id },
+      limit,
+      offset,
+      order: [['updatedAt', 'DESC']], // Optional: order by most recently updated
+    });
+
+    res.json({
+      algorithms: rows,
+      totalItems: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -125,10 +149,36 @@ router.get('/:algorithmId/backtests', authMiddleware, async (req, res) => {
       return res.status(404).json({ error: 'Algorithm not found or does not belong to user' });
     }
 
-    const backtestResults = await BacktestResult.findAll({
-      where: { AlgorithmId: req.params.algorithmId, UserId: req.user.id },
+    let page = parseInt(req.query.page, 10);
+    let limit = parseInt(req.query.limit, 10);
+
+    // Default values if page or limit are not provided or invalid
+    if (isNaN(page) || page < 1) {
+      page = 1;
+    }
+    if (isNaN(limit) || limit < 1) {
+      limit = 5; // Default limit for backtests, often fewer per algo
+    }
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await BacktestResult.findAndCountAll({
+      where: {
+        AlgorithmId: req.params.algorithmId,
+        UserId: req.user.id // Ensure user owns the backtests indirectly via algorithm ownership check already done
+                            // or directly if BacktestResult also has UserId
+      },
+      limit,
+      offset,
+      order: [['generatedAt', 'DESC']], // Show newest backtests first
     });
-    res.json(backtestResults);
+
+    res.json({
+      backtests: rows,
+      totalItems: count,
+      totalPages: Math.ceil(count / limit),
+      currentPage: page,
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

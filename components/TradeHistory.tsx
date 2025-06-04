@@ -10,24 +10,38 @@ interface TradeHistoryProps {
 const TradeHistory: React.FC<TradeHistoryProps> = ({ selectedContract }) => {
   const {
     selectedAccountId,
-    fetchTrades,
-    liveTradeUpdates
+    fetchTrades, // This is fetchTradesHandler from context
+    liveTradeUpdates, // This is the array of trades for the current page
+    currentPageTrades, // Current page from context
+    totalPagesTrades,  // Total pages from context
+    totalTradesCount,  // Total items from context
+    tradesLimitPerPage, // Limit per page from context
+    setCurrentPageTrades, // To request a specific page via context (optional, direct call to fetchTrades also works)
   } = useTradingContext();
 
   // Filter state
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  // isLoading can be taken from context if we add isLoadingTrades, or keep local for this component's direct actions
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load trades on component mount
+  // Component's view of the current page, might differ from context if navigating locally before context updates
+  // For simplicity, we'll drive changes through fetchTrades and rely on context's currentPageTrades for display.
+  // The actual page to fetch will be managed by button clicks.
+
+  // Load trades when filters, selected account, or selected contract changes.
+  // Also when currentPageTrades from context changes (if another component modified it).
   useEffect(() => {
     if (selectedAccountId) {
-      loadTrades();
+      // Fetch initial page or current page based on context's currentPageTrades
+      // The fetchTrades handler in context now uses its own currentPageTrades state if page isn't passed
+      loadTrades(currentPageTrades);
     }
-  }, [selectedAccountId, selectedContract]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedAccountId, selectedContract, currentPageTrades]); // Removed loadTrades from here to avoid loop if it's not memoized with all deps
 
-  const loadTrades = async () => {
+  const loadTrades = async (pageToLoad?: number) => {
     if (!selectedAccountId) {
       setError('Please select an account first');
       return;
@@ -55,17 +69,39 @@ const TradeHistory: React.FC<TradeHistoryProps> = ({ selectedContract }) => {
         params.contractId = selectedContract.id;
       }
 
-      await fetchTrades(params);
+      // Use pageToLoad if provided (e.g., from pagination buttons), otherwise default to 1 or context's current.
+      // The context's fetchTrades will use its internal currentPageTrades if page is not specified in params.
+      // So, to change page, we must pass it.
+      params.page = pageToLoad || 1;
+      params.limit = tradesLimitPerPage;
+
+      await fetchTrades(params); // This now calls the context's fetchTradesHandler
+                                 // which updates context states like totalPagesTrades etc.
     } catch (error) {
-      setError(`Error fetching trades: ${error instanceof Error ? error.message : String(error)}`);
+      const errMsg = error instanceof Error ? error.message : String(error);
+      setError(`Error fetching trades: ${errMsg}`);
+      // Context's fetchTrades will set its own error/loading, but local error can also be set.
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // Manage local loading state for filter button etc.
+                           // Context might have its own global isLoading.
     }
   };
 
   const handleFilterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    loadTrades();
+    loadTrades(1); // Reset to page 1 when applying new filters
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPageTrades > 1) {
+      loadTrades(currentPageTrades - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPageTrades < totalPagesTrades) {
+      loadTrades(currentPageTrades + 1);
+    }
   };
 
   const formatDate = (dateString: string): string => {
@@ -159,6 +195,7 @@ const TradeHistory: React.FC<TradeHistoryProps> = ({ selectedContract }) => {
         {liveTradeUpdates.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
+              {/* ... table head ... */}
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date/Time</th>
@@ -171,8 +208,8 @@ const TradeHistory: React.FC<TradeHistoryProps> = ({ selectedContract }) => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {liveTradeUpdates
-                  .filter(trade => !trade.voided) // Filter out voided trades
+                {liveTradeUpdates // This now represents the current page's trades from context
+                  .filter(trade => !trade.voided)
                   .map(trade => (
                     <tr key={trade.id}>
                       <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">
@@ -187,7 +224,7 @@ const TradeHistory: React.FC<TradeHistoryProps> = ({ selectedContract }) => {
                         </span>
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">{trade.size}</td>
-                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">${trade.price.toFixed(2)}</td>
+                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-900">${trade.price.toFixed(selectedContract?.precision || 2)}</td>
                       <td className="px-3 py-2 whitespace-nowrap text-sm">
                         {trade.profitAndLoss !== null && trade.profitAndLoss !== undefined ? (
                           <span className={`${trade.profitAndLoss >= 0 ? 'text-green-600' : 'text-red-600'} font-medium`}>
@@ -205,9 +242,31 @@ const TradeHistory: React.FC<TradeHistoryProps> = ({ selectedContract }) => {
           </div>
         ) : (
           <p className="text-gray-500 text-center py-4">
-            {isLoading ? 'Loading trades...' : 'No trades found for the selected filters'}
+            {isLoading ? 'Loading trades...' : 'No trades found for the selected filters.'}
           </p>
         )}
+        {/* Pagination Controls */}
+        {totalPagesTrades > 0 && (
+            <div className="mt-4 flex justify-between items-center text-sm">
+              <button
+                onClick={handlePreviousPage}
+                disabled={currentPageTrades <= 1 || isLoading}
+                className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <span>
+                Page {currentPageTrades} of {totalPagesTrades} (Total: {totalTradesCount} trades)
+              </span>
+              <button
+                onClick={handleNextPage}
+                disabled={currentPageTrades >= totalPagesTrades || isLoading}
+                className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          )}
       </div>
     </div>
   );

@@ -76,6 +76,12 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [isLoadingHistoricalData, setIsLoadingHistoricalData] = useState<boolean>(false);
   const [historicalDataError, setHistoricalDataError] = useState<string | null>(null);
 
+  // Trade History Pagination State
+  const [currentPageTrades, setCurrentPageTrades] = useState<number>(1);
+  const [totalPagesTrades, setTotalPagesTrades] = useState<number>(0);
+  const [totalTradesCount, setTotalTradesCount] = useState<number>(0);
+  const [tradesLimitPerPage, setTradesLimitPerPage] = useState<number>(20); // Default limit
+
   const disconnectUserHubHandler = useCallback(async () => {
     if (userHubConnection) {
       setUserHubStatus('disconnecting');
@@ -925,34 +931,61 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
     startTimestamp?: string;
     endTimestamp?: string;
     contractId?: string;
+    page?: number;
+    limit?: number;
   }): Promise<void> => {
     if (!sessionToken || !selectedBroker || !selectedAccountId) {
       setConnectionStatusMessage('Cannot fetch trades: Missing session token, broker selection, or account');
+      setLiveTradeUpdates([]);
+      setTotalTradesCount(0);
+      setTotalPagesTrades(0);
+      setCurrentPageTrades(1);
       return;
     }
 
+    const pageToFetch = params?.page || currentPageTrades; // Use provided page or current page from state
+    const limitToFetch = params?.limit || tradesLimitPerPage; // Use provided limit or default from state
+
     try {
-      setIsLoading(true);
+      setIsLoading(true); // Consider a specific isLoadingTrades state if needed
       const response = await searchTrades(selectedBroker, sessionToken, {
         accountId: selectedAccountId,
-        ...params
+        startTimestamp: params?.startTimestamp,
+        endTimestamp: params?.endTimestamp,
+        contractId: params?.contractId,
+        page: pageToFetch,
+        limit: limitToFetch,
       });
       setIsLoading(false);
 
       if (response.success) {
-        // Store trades in liveTradeUpdates
         setLiveTradeUpdates(response.trades);
-        setConnectionStatusMessage(`Successfully fetched ${response.trades.length} trades.`);
+        // Assuming searchTrades response might now include pagination data
+        setTotalTradesCount(response.totalItems || response.trades.length); // Fallback if totalItems not provided
+        setTotalPagesTrades(response.totalPages || Math.ceil((response.totalItems || response.trades.length) / limitToFetch));
+        setCurrentPageTrades(response.currentPage || pageToFetch);
+
+        const message = `Successfully fetched ${response.trades.length} trades. ` +
+                        (response.totalItems ? `(Page ${response.currentPage} of ${response.totalPages}, Total: ${response.totalItems})` : '');
+        setConnectionStatusMessage(message);
+
       } else {
         const errorMessage = response.errorMessage || 'Unknown error fetching trades';
         setConnectionStatusMessage(`Failed to fetch trades: ${errorMessage}`);
+        setLiveTradeUpdates([]);
+        setTotalTradesCount(0);
+        setTotalPagesTrades(0);
+        // Don't reset currentPageTrades here, let user be on the page they tried to fetch
       }
     } catch (error) {
       setIsLoading(false);
       const errorMessage = error instanceof Error ? error.message : String(error);
       setConnectionStatusMessage(`Error fetching trades: ${errorMessage}`);
+      setLiveTradeUpdates([]);
+      setTotalTradesCount(0);
+      setTotalPagesTrades(0);
     }
-  }, [sessionToken, selectedBroker, selectedAccountId, setConnectionStatusMessage]);
+  }, [sessionToken, selectedBroker, selectedAccountId, setConnectionStatusMessage, currentPageTrades, tradesLimitPerPage]);
 
 
   // Position Management Handlers
@@ -1283,10 +1316,17 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
       liveAccountUpdates,
       liveOrderUpdates,
       livePositionUpdates,
-      setLivePositionUpdates,
-      liveTradeUpdates,
+      setLivePositionUpdates, // Keep this if direct manipulation is needed elsewhere
+      liveTradeUpdates, // This will be populated by fetchTradesHandler
       connectUserHub: connectUserHubInternal,
       disconnectUserHub: disconnectUserHubHandler,
+
+      // Trade Pagination State
+      currentPageTrades,
+      totalPagesTrades,
+      totalTradesCount,
+      tradesLimitPerPage,
+      setCurrentPageTrades, // Expose to allow components to request a specific page
 
       marketHubConnection,
       marketHubStatus,

@@ -37,4 +37,12 @@ const Sidebar: React.FC<SidebarProps> = ({ navItems }) => {
   );
 };
 
-export default Sidebar;
+// Apply React.memo to Sidebar.
+// The Sidebar component receives `navItems` as a prop.
+// Assuming `navItems` is a constant or changes very infrequently (e.g., only if user roles change navigation),
+// React.memo with a default shallow comparison of props will prevent unnecessary re-renders
+// if the parent component (e.g., App) re-renders due to other state or context changes.
+// This is a good practice for relatively static components like a navigation sidebar.
+const MemoizedSidebar = React.memo(Sidebar);
+
+export default MemoizedSidebar;
