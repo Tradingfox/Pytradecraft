@@ -3,7 +3,8 @@ import SectionPanel from '../components/SectionPanel';
 import BacktestChart from '../components/BacktestChart';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ConsoleOutput from '../components/ConsoleOutput';
-import { Algorithm, BacktestResult, GeminiRequestStatus } from '../types';
+import ContractSearchInput from '../components/ContractSearchInput'; // Import the new component
+import { Algorithm, BacktestResult, GeminiRequestStatus, Contract } from '../types'; // Add Contract type
 import { MOCK_ALGORITHMS } from '../services/mockTradingService';
 import { runBacktest } from '../services/backtestService';
 import { analyzeBacktestResults, analyzeBacktestResultsWithContext } from '../services/geminiService';
@@ -15,10 +16,12 @@ import { SETTINGS_VIEW_URL } from '../constants.ts';
 
 const BacktestingView: React.FC = () => {
   const { apiKeyStatus, geminiApiKey } = useAppContext();
-  const { sessionToken } = useTradingContext();
+  const { sessionToken, selectedBroker } = useTradingContext(); // Added selectedBroker
   const [algorithms] = useState<Algorithm[]>(MOCK_ALGORITHMS);
   const [selectedAlgorithmId, setSelectedAlgorithmId] = useState<string>(algorithms.length > 0 ? algorithms[0].id : '');
-  const [contractId, setContractId] = useState<string>('');
+  const [contractId, setContractId] = useState<string>(''); // This will be set by ContractSearchInput
+  const [selectedContractForBacktest, setSelectedContractForBacktest] = useState<Contract | null>(null);
+
 
   const today = new Date().toISOString().split('T')[0];
   const oneYearAgo = new Date();
@@ -161,17 +164,23 @@ Number of Trades: ${backtestResult.trades.length}
             </select>
           </div>
 
-          <div>
-            <label htmlFor="contractId" className="block text-sm font-medium text-gray-300 mb-1">TopstepX Contract ID</label>
-            <input 
-              type="text" 
-              id="contractId" 
-              value={contractId} 
-              onChange={e => setContractId(e.target.value)} 
-              placeholder="Enter TopstepX Contract ID" 
-              className="w-full bg-gray-700 text-white p-2 rounded-md border border-gray-600 focus:ring-sky-500 focus:border-sky-500" 
+          <div className="md:col-span-2"> {/* Allow search to take more space if needed */}
+            <label htmlFor="contractSearch" className="block text-sm font-medium text-gray-300 mb-1">
+              Contract for Backtest {selectedContractForBacktest ? `(${selectedContractForBacktest.name})` : ''}
+            </label>
+            <ContractSearchInput
+              selectedBroker={selectedBroker}
+              onContractSelect={(contract: Contract) => {
+                setContractId(contract.id);
+                setSelectedContractForBacktest(contract);
+                setBacktestLogs(prev => [...prev, `Contract selected: ${contract.name} (${contract.id})`]);
+              }}
+              placeholder="Search contract for backtest..."
+              enableAutoSearch={true} // Or false, depending on preference
+              showQuickSearch={true}
             />
           </div>
+
 
           <div>
             <label htmlFor="interval" className="block text-sm font-medium text-gray-300 mb-1">Interval</label>

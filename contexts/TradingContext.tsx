@@ -311,8 +311,13 @@ export const TradingProvider: React.FC<{ children: ReactNode }> = ({ children })
       // Add connection error handling
       newConnection.onclose((error) => {
         console.log('User Hub connection closed:', error);
-        setUserHubStatus('disconnected');
-        setUserHubStatusMessage('User Hub: Connection closed.');
+        // Assuming withAutomaticReconnect is active on this connection.
+        // Reflecting that SignalR is attempting to reconnect in the background.
+        setUserHubStatus('connecting');
+        setUserHubStatusMessage('User Hub: Connection lost. Attempting to reconnect...');
+        // Keep setUserHubConnection(null) for now. If SignalR successfully reconnects,
+        // onreconnected will set the new connection. If it fails all retries,
+        // this status will remain 'connecting' until another action changes it.
         setUserHubConnection(null);
       });
 

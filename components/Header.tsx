@@ -1,6 +1,8 @@
 
 import React from 'react';
 import { useAppContext } from '../contexts/AppContext';
+import { useTradingContext } from '../contexts/TradingContext'; // Import useTradingContext
+import HubStatusIndicator from './HubStatusIndicator'; // Import HubStatusIndicator
 import { GEMINI_API_KEY_INFO_URL } from '../constants.tsx';
 
 
@@ -44,13 +46,29 @@ const ApiKeyStatusIndicator: React.FC = () => {
 
 
 const Header: React.FC<HeaderProps> = ({ title }) => {
+  const {
+    userHubStatus, userHubStatusMessage,
+    marketHubStatus, marketHubStatusMessage
+  } = useTradingContext();
+
   return (
     <header className="bg-gray-850 p-4 shadow-md flex justify-between items-center border-b border-gray-700">
       <h2 className="text-xl font-semibold text-white">{title}</h2>
-      <div className="flex items-center space-x-4">
+      <div className="flex items-center space-x-3 sm:space-x-4"> {/* Adjusted spacing for more items */}
+        <HubStatusIndicator
+          hubName="User"
+          status={userHubStatus}
+          statusMessage={userHubStatusMessage}
+        />
+        <HubStatusIndicator
+          hubName="Market"
+          status={marketHubStatus}
+          statusMessage={marketHubStatusMessage}
+        />
+        <div className="hidden sm:block h-5 w-px bg-gray-600"></div> {/* Separator for larger screens */}
         <ApiKeyStatusIndicator />
         <img
-          src="https://picsum.photos/seed/user/40/40"
+          src="https://picsum.photos/seed/user/40/40" // Placeholder avatar
           alt="User Avatar"
           className="w-8 h-8 rounded-full"
         />
