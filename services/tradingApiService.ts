@@ -50,15 +50,26 @@ async function makeApiRequest<T_Response, T_Request = any>(
     customHeaders?: Record<string, string> // New parameter for custom headers
 ): Promise<T_Response> {
     const baseUrl = getApiBaseUrl(broker);
-    const url = `${baseUrl}${endpoint}`;
+    
+    // For TopstepX API, we need to fix the endpoints since our proxy is now configured differently
+    let url;
+    if (broker === 'topstepx') {
+        // For Topstep API, the endpoint already includes the /api part, which we need to keep with our new proxy
+        url = `${baseUrl}${endpoint}`;
+    } else {
+        // For other APIs, concatenate as usual
+        url = `${baseUrl}${endpoint}`;
+    }
 
-    const headers: HeadersInit = {
+    // Prepare request headers
+    const headers: Record<string, string> = {
         'Content-Type': 'application/json',
         'Accept': 'application/json', // Prefer JSON response
-        ...customHeaders, // Spread custom headers here
+        ...(customHeaders || {})
     };
 
-    if (token) { // This is for session token, not API key for initial auth
+    // Add authorization header if token is provided
+    if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
 

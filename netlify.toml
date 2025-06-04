@@ -1,0 +1,10 @@
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/external/topstep/*"
+  to = "https://api.topstepx.com/:splat"
+  status = 200
+  force = true 

@@ -1,7 +1,7 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
-import https from 'https';
+import http from 'http';
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
@@ -22,7 +22,7 @@ export default defineConfig(({ mode }) => {
             target: 'http://localhost:3001',
             changeOrigin: true,
             secure: false,
-            agent: new https.Agent(),
+            agent: new http.Agent(),
             rewrite: (path) => path
           },
           // Add external API proxies to avoid CORS issues
@@ -30,7 +30,12 @@ export default defineConfig(({ mode }) => {
             target: 'https://api.topstepx.com',
             changeOrigin: true,
             secure: true,
-            rewrite: (path) => path.replace(/^\/external\/topstep/, '/api')
+            rewrite: (path) => path.replace(/^\/external\/topstep/, ''),
+            configure: (proxy, _options) => {
+              proxy.on('error', (err, _req, _res) => {
+                console.log('proxy error', err);
+              });
+            }
           }
         }
       }
