@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import { useLocation, useNavigate } from 'react-router-dom'; // Import useLocation and useNavigate
 import { useTradingContext } from '../contexts/TradingContext';
 import OrderManagement from '../components/OrderManagement';
 import TradeHistory from '../components/TradeHistory';
@@ -33,6 +34,97 @@ const TradingView: React.FC = () => {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState<boolean>(false);
 
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Memoize handleContractSearch to stabilize its reference for useEffect
+  const handleContractSearch = useCallback(async (searchTextOverride?: string) => {
+    const currentSearchText = searchTextOverride || searchText; // Use override if provided
+
+    if (!selectedBroker || !isAuthenticated || !selectedAccountId) {
+      setSearchError('Please connect to a broker and select an account first');
+      return;
+    }
+
+    if (!currentSearchText.trim()) {
+      setSearchError('Please enter a search term');
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError(null);
+
+    try {
+      console.log('🔍 Starting contract search with:', {
+        broker: selectedBroker,
+        searchText: currentSearchText.trim(),
+        accountId: selectedAccountId
+      });
+
+      const result = await searchContracts(selectedBroker, {
+        searchText: currentSearchText.trim(),
+        live: false,
+      });
+
+      if (result.success) {
+        setContracts(result.contracts);
+        if (result.contracts.length > 0) {
+          // If search was triggered by navigation and returns results, auto-select the first one
+          // This is particularly useful if the ID search returns one exact match.
+          if (searchTextOverride && result.contracts.some(c => c.id === searchTextOverride)) {
+            const exactMatch = result.contracts.find(c => c.id === searchTextOverride);
+            setSelectedContract(exactMatch || result.contracts[0]);
+          } else if (searchTextOverride && result.contracts.length === 1) {
+            // If an ID was searched and only one result came back, assume it's the one.
+             setSelectedContract(result.contracts[0]);
+          }
+        } else {
+          console.log(`🔍 No contracts with live: false for "${currentSearchText.trim()}", trying live: true...`);
+          const resultLive = await searchContracts(selectedBroker, {
+            searchText: currentSearchText.trim(),
+            live: true,
+          });
+
+          if (resultLive.success && resultLive.contracts.length > 0) {
+            setContracts(resultLive.contracts);
+            if (searchTextOverride && resultLive.contracts.some(c => c.id === searchTextOverride)) {
+                const exactMatch = resultLive.contracts.find(c => c.id === searchTextOverride);
+                setSelectedContract(exactMatch || resultLive.contracts[0]);
+            } else if (searchTextOverride && resultLive.contracts.length === 1) {
+                setSelectedContract(resultLive.contracts[0]);
+            }
+          } else {
+            setSearchError(`No contracts found for "${currentSearchText.trim()}".`);
+          }
+        }
+      } else {
+        setSearchError(`API Error: ${result.errorMessage || 'Failed to search contracts'} (Code: ${result.errorCode})`);
+      }
+    } catch (error) {
+      console.error('Contract search error:', error);
+      setSearchError(`Error searching contracts: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [searchContracts, selectedBroker, isAuthenticated, selectedAccountId, searchText]); // Added searchText here
+
+  // Effect to handle incoming contractId from route state (e.g., from dashboard widget)
+  useEffect(() => {
+    if (location.state?.selectedContractId) {
+      const incomingContractId = location.state.selectedContractId;
+      if (incomingContractId !== selectedContract?.id) {
+        setSearchText(incomingContractId); // Set searchText to the ID
+        // Call handleContractSearch with the specific ID to ensure it searches for this ID
+        handleContractSearch(incomingContractId);
+        // Optionally, clear the state from location to prevent re-triggering on refresh
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+      // Ensure the trading tab is active
+      setActiveTab('trading');
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, navigate, handleContractSearch]); // Removed selectedContract?.id to avoid loop with setSelectedContract inside handleContractSearch
+
   // Reset selected contract when broker or account changes
   useEffect(() => {
     setSelectedContract(null);
@@ -40,7 +132,8 @@ const TradingView: React.FC = () => {
     setSearchText('');
   }, [selectedBroker, selectedAccountId]);
 
-  const handleContractSearch = async () => {
+  // Original handleContractSearch (now part of useCallback above)
+  // const handleContractSearch = async () => {
     if (!selectedBroker || !isAuthenticated || !selectedAccountId) {
       setSearchError('Please connect to a broker and select an account first');
       return;
@@ -215,12 +308,12 @@ const TradingView: React.FC = () => {
                   placeholder="Search for a contract (e.g. ES, NQ, CL)"
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleContractSearch()}
+                  onKeyDown={(e) => e.key === 'Enter' && handleContractSearch()} // Default search on Enter
                 />
                 <button
-                  onClick={handleContractSearch}
+                  onClick={() => handleContractSearch()} // Explicit call without params for button
                   className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                  disabled={isSearching}
+                  disabled={isSearching || !searchText.trim()}
                 >
                   {isSearching ? 'Searching...' : 'Search'}
                 </button>
@@ -242,7 +335,7 @@ const TradingView: React.FC = () => {
                       onClick={() => {
                         setSearchText(symbol);
                         // Auto-search after setting the text
-                        setTimeout(() => handleContractSearch(), 100);
+                        setTimeout(() => handleContractSearch(symbol), 100); // Pass symbol to search
                       }}
                       className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white text-sm rounded transition-colors"
                     >

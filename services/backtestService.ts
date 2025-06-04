@@ -225,9 +225,32 @@ export const processHistoricalData = (
 
   // Calculate win rate
   const winningTrades = trades.filter(trade => trade.pnl !== undefined && trade.pnl > 0).length;
+  const losingTrades = trades.filter(trade => trade.pnl !== undefined && trade.pnl < 0).length;
   const winRate = trades.length > 0 ? (winningTrades / trades.length) * 100 : 0;
 
+  // Calculate Gross Profit and Gross Loss
+  const grossProfit = trades
+    .filter(trade => trade.pnl !== undefined && trade.pnl > 0)
+    .reduce((sum, trade) => sum + (trade.pnl || 0), 0);
+
+  const grossLoss = trades
+    .filter(trade => trade.pnl !== undefined && trade.pnl < 0)
+    .reduce((sum, trade) => sum + Math.abs(trade.pnl || 0), 0); // Sum of absolute values of losses
+
+  // Profit Factor
+  const profitFactor = grossLoss === 0 ? (grossProfit > 0 ? Infinity : 1) : parseFloat((grossProfit / grossLoss).toFixed(2)); // Handle division by zero
+
+  // Average Winning Trade
+  const avgWinningTrade = winningTrades > 0 ? parseFloat((grossProfit / winningTrades).toFixed(2)) : 0;
+
+  // Average Losing Trade
+  const avgLosingTrade = losingTrades > 0 ? parseFloat((grossLoss / losingTrades).toFixed(2)) : 0;
+
+
   logs.push(`Backtest finished. Final Equity: $${finalEquity.toLocaleString()}`);
+  logs.push(`Gross Profit: $${grossProfit.toFixed(2)}, Gross Loss: $${grossLoss.toFixed(2)}, Profit Factor: ${profitFactor === Infinity ? 'Infinity' : profitFactor}`);
+  logs.push(`Avg Win: $${avgWinningTrade.toFixed(2)} (x${winningTrades}), Avg Loss: $${avgLosingTrade.toFixed(2)} (x${losingTrades})`);
+
 
   return {
     id: `backtest-${Date.now()}`,
@@ -247,6 +270,11 @@ export const processHistoricalData = (
       { name: 'Max Drawdown', value: `${maxDrawdown.toFixed(2)}%` },
       { name: 'Number of Trades', value: trades.length.toString() },
       { name: 'Winning Trades %', value: `${winRate.toFixed(1)}%` },
+      { name: 'Profit Factor', value: profitFactor === Infinity ? 'Infinity' : profitFactor.toString() },
+      { name: 'Avg Winning Trade', value: `$${avgWinningTrade.toFixed(2)}` },
+      { name: 'Avg Losing Trade', value: `$${avgLosingTrade.toFixed(2)}` },
+      { name: 'Gross Profit', value: `$${grossProfit.toFixed(2)}` },
+      { name: 'Gross Loss', value: `$${grossLoss.toFixed(2)}` },
     ],
     logs,
     trades,

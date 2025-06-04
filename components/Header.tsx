@@ -60,12 +60,12 @@ const HeaderComponent: React.FC<HeaderProps> = ({ title }) => {
       <h2 className="text-xl font-semibold text-white">{title}</h2>
       <div className="flex items-center space-x-3 sm:space-x-4"> {/* Adjusted spacing for more items */}
         <HubStatusIndicator
-          hubName="User"
+          hubName="User Hub"
           status={userHubStatus}
           statusMessage={userHubStatusMessage}
         />
         <HubStatusIndicator
-          hubName="Market"
+          hubName="Market Hub"
           status={marketHubStatus}
           statusMessage={marketHubStatusMessage}
         />

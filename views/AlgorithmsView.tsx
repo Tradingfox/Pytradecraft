@@ -4,6 +4,10 @@ import SectionPanel from '../components/SectionPanel';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ConsoleOutput from '../components/ConsoleOutput';
 import BacktestPanel from '../components/BacktestPanel';
+import BacktestMetricsTable from '../components/BacktestMetricsTable'; // Already used for saved backtests
+import BacktestResultsChart from '../components/BacktestResultsChart'; // Already used for saved backtests
+import BacktestTradesTable from '../components/BacktestTradesTable';   // Already used for saved backtests
+import PnLDistributionChart from '../components/Backtest/PnLDistributionChart'; // Import new chart
 import { Algorithm, GeminiRequestStatus, BacktestResult } from '../types';
 import { DEFAULT_ALGORITHM_CODE } from '../constants.tsx';
 import { GEMINI_API_KEY_INFO_URL } from '../constants';
@@ -76,8 +80,17 @@ const AlgorithmsView: React.FC = () => {
         },
       });
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to fetch algorithms: ${response.statusText}`);
+        let errorMsg = `Request failed with status ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorData.message || JSON.stringify(errorData);
+        } catch (jsonError) {
+          try {
+            const textError = await response.text();
+            if (textError) { errorMsg = textError; }
+          } catch (textParseError) { /* Stick with initial errorMsg */ }
+        }
+        throw new Error(errorMsg);
       }
       const data = await response.json(); // Expects { algorithms: [], totalItems: number, totalPages: number, currentPage: number }
       setAlgorithms(data.algorithms);
@@ -139,8 +152,17 @@ const AlgorithmsView: React.FC = () => {
         },
       });
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to fetch saved backtests: ${response.statusText}`);
+        let errorMsg = `Request failed with status ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorData.message || JSON.stringify(errorData);
+        } catch (jsonError) {
+          try {
+            const textError = await response.text();
+            if (textError) { errorMsg = textError; }
+          } catch (textParseError) { /* Stick with initial errorMsg */ }
+        }
+        throw new Error(errorMsg);
       }
       const data = await response.json(); // Expects { backtests: [], totalItems: number, totalPages: number, currentPage: number }
       setSavedBacktests(data.backtests);
@@ -229,8 +251,17 @@ const AlgorithmsView: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to create algorithm: ${response.statusText}`);
+        let errorMsg = `Request failed with status ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorData.message || JSON.stringify(errorData);
+        } catch (jsonError) {
+          try {
+            const textError = await response.text();
+            if (textError) { errorMsg = textError; }
+          } catch (textParseError) { /* Stick with initial errorMsg */ }
+        }
+        throw new Error(errorMsg);
       }
       const createdAlgorithm: Algorithm = await response.json();
       // After creating, fetch the page where the new algorithm might appear (e.g., page 1 or current page)
@@ -283,11 +314,20 @@ const AlgorithmsView: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to save algorithm: ${response.statusText}`);
+        let errorMsg = `Request failed with status ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorData.message || JSON.stringify(errorData);
+        } catch (jsonError) {
+          try {
+            const textError = await response.text();
+            if (textError) { errorMsg = textError; }
+          } catch (textParseError) { /* Stick with initial errorMsg */ }
+        }
+        throw new Error(errorMsg);
       }
       const updatedAlgorithm: Algorithm = await response.json();
-      await fetchAlgorithms(); // Refresh the list
+      await fetchAlgorithms(currentPageAlgos, algoLimitPerPage); // Refresh the current page of the list
       // Or, for optimistic update:
       // setAlgorithms(prev => prev.map(a => a.id === updatedAlgorithm.id ? updatedAlgorithm : a)); // Optimistic update
       setSelectedAlgorithm(updatedAlgorithm); // Re-set to trigger useEffect if needed, or just update fields
@@ -327,8 +367,17 @@ const AlgorithmsView: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Failed to delete algorithm: ${response.statusText}`);
+        let errorMsg = `Request failed with status ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorData.message || JSON.stringify(errorData);
+        } catch (jsonError) {
+          try {
+            const textError = await response.text();
+            if (textError) { errorMsg = textError; }
+          } catch (textParseError) { /* Stick with initial errorMsg */ }
+        }
+        throw new Error(errorMsg);
       }
 
       setGeminiOutput(prev => [...prev, `Algorithm "${algorithmToDelete?.name || algorithmId}" deleted successfully.`]);
@@ -800,6 +849,12 @@ const AlgorithmsView: React.FC = () => {
                     <h4 className="text-md font-semibold text-gray-200 mb-1">Logs</h4>
                     <ConsoleOutput lines={selectedSavedBacktest.logs} title="Saved Backtest Logs" height="200px" />
                   </div>
+                  {selectedSavedBacktest.trades && selectedSavedBacktest.trades.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="text-md font-semibold text-gray-200 mb-1">P&L Distribution</h4>
+                      <PnLDistributionChart trades={selectedSavedBacktest.trades} />
+                    </div>
+                  )}
                   <button
                     onClick={() => setSelectedSavedBacktest(null)}
                     className="mt-4 bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2 px-4 rounded-md transition duration-150 ease-in-out"

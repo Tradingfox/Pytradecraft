@@ -3,9 +3,18 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import SectionPanel from '../components/SectionPanel';
 import { NAV_ITEMS } from '../constants.tsx';
+// useTradingContext and HubConnectionStatus are no longer needed here directly
+// useNavigate was only used for the inline SystemStatus, now encapsulated
+import AccountSummaryWidget from '../components/Dashboard/AccountSummaryWidget';
+import MarketOverviewWidget from '../components/Dashboard/MarketOverviewWidget';
+import RecentActivityWidget from '../components/Dashboard/RecentActivityWidget'; // Import new widget
+import SystemStatusWidget from '../components/Dashboard/SystemStatusWidget';   // Import new widget
 
 const DashboardView: React.FC = () => {
   const quickAccessItems = NAV_ITEMS.filter(item => item.id !== 'dashboard' && item.id !== 'settings').slice(0, 4);
+
+  // Context consumption and helper functions (like getStatusColor, navigate)
+  // are now moved into SystemStatusWidget.
 
   return (
     <div className="space-y-6">
@@ -33,24 +42,13 @@ const DashboardView: React.FC = () => {
         </div>
       </SectionPanel>
       
+      {/* Changed to md:grid-cols-2 for a 2x2 layout on medium screens and up */}
+      {/* Main dashboard widgets in a 2x2 grid on medium screens and up */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <SectionPanel title="Recent Activity (Mock)">
-          <ul className="space-y-2 text-sm">
-            <li className="text-gray-400">Backtest completed for 'SMA Crossover Strategy'.</li>
-            <li className="text-gray-400">New algorithm 'Volatility Breakout' created.</li>
-            <li className="text-gray-400">Indicator 'Custom MACD' updated.</li>
-            <li className="text-gray-400">Deployed 'RSI Momentum Bot' to paper account.</li>
-          </ul>
-        </SectionPanel>
-        
-        <SectionPanel title="System Status (Mock)">
-            <div className="space-y-2 text-sm">
-                <p className="text-gray-400">Market Data Feed: <span className="text-green-400">Connected</span></p>
-                <p className="text-gray-400">Broker Connection (Paper): <span className="text-green-400">Active</span></p>
-                <p className="text-gray-400">Last Gemini Sync: <span className="text-gray-300">{new Date().toLocaleTimeString()}</span></p>
-                <p className="text-gray-400">Active Algorithms: <span className="text-gray-300">2</span></p>
-            </div>
-        </SectionPanel>
+        <AccountSummaryWidget />
+        <MarketOverviewWidget />
+        <SystemStatusWidget />   {/* New component */}
+        <RecentActivityWidget /> {/* New component */}
       </div>
     </div>
   );

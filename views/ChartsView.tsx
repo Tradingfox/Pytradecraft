@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import { useLocation, useNavigate } from 'react-router-dom'; // Import useLocation and useNavigate
 import { useTradingContext } from '../contexts/TradingContext';
 import Chart from '../components/Chart'; // Will be replaced
 import HybridChart from '../components/HybridChart'; // Will be replaced
@@ -35,7 +36,7 @@ const ChartsView: React.FC = () => {
   } = useTradingContext();
 
   const [selectedContractId, setSelectedContractId] = useState<string>('');
-  const [selectedContractFull, setSelectedContractFull] = useState<Contract | null>(null);
+  const [selectedContractFull, setSelectedContractFull] = useState<Contract | null>(null); // To store the full contract object
   const [trades, setTrades] = useState<Trade[]>([]); // For markers potentially, or separate display
   const [positions, setPositions] = useState<Position[]>([]);
   const [isLoadingTrades, setIsLoadingTrades] = useState(false);
@@ -58,6 +59,9 @@ const ChartsView: React.FC = () => {
   const currentBarRef = useRef<HistoricalBar | null>(null);
   const lastBarTimeRef = useRef<number | null>(null);
 
+  const location = useLocation(); // For reading route state
+  const navigate = useNavigate(); // For clearing route state
+
   // Ensure refs are updated when state changes (though primary logic will pass state directly)
   useEffect(() => {
     currentBarRef.current = currentBar;
@@ -65,6 +69,27 @@ const ChartsView: React.FC = () => {
   useEffect(() => {
     lastBarTimeRef.current = lastBarTime;
   }, [lastBarTime]);
+
+  // Effect to handle incoming contractId from route state (e.g., from market overview widget)
+  useEffect(() => {
+    if (location.state?.selectedContractId) {
+      const incomingContractId = location.state.selectedContractId as string;
+      if (incomingContractId && incomingContractId !== selectedContractId) {
+        console.log(`ChartsView: Received contractId from route state: ${incomingContractId}`);
+        // Update the contract ID, which will trigger other useEffects to load data
+        setSelectedContractId(incomingContractId);
+        // The ContractSearchInput also needs to be updated if its text is tied to a different state.
+        // For now, setting selectedContractId will drive data loading for the chart.
+        // We might need to also update selectedContractFull if other parts rely on it immediately.
+        // A simple way is to set it partially, or trigger a search if ContractSearchInput is the source of truth for it.
+        setSelectedContractFull(prev => prev?.id === incomingContractId ? prev : { id: incomingContractId, name: incomingContractId } as Contract);
+
+
+        // Clear the state from location to prevent re-triggering on refresh/navigation
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+    }
+  }, [location.state, selectedContractId, navigate]);
 
   const getTimeframeMs = useCallback((): number => {
     const unit = timeframe.slice(-1);
