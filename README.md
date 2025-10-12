@@ -15,16 +15,67 @@ A web application for developing, backtesting, and managing Python-based trading
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+**Prerequisites:**  Node.js (v16 or higher)
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+**Quick Start:** See the [detailed setup guide](SETUP.md) for complete instructions.
+
+### Quick Start
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Configure environment:**
+   - Copy `.env.local.example` to `.env.local`
+   - Set your `GEMINI_API_KEY` in `.env.local` (get it from [Google AI Studio](https://makersuite.google.com/app/apikey))
+
+3. **Start the application:**
+   
+   **Option A: Start both frontend and backend together (recommended):**
+   ```bash
+   npm run dev:full
+   ```
+   
+   **Option B: Start backend only:**
+   ```bash
+   npm run server
+   # Or use the convenience scripts:
+   ./start-backend.sh       # Linux/Mac
+   start-backend.bat        # Windows
+   ```
+   
+   **Option C: Start frontend only (for development):**
+   ```bash
+   npm run dev
+   ```
+
+### Backend Server
+
+The backend server provides REST API endpoints for:
+- Algorithm management (`/api/algorithms`)
+- Deployment management (`/api/deployments`)
+- Account deployments (`/api/accounts/:accountId/deployments`)
+- Algorithm deployments (`/api/algorithms/:algorithmId/deployments`)
+
+**Backend runs on:** `http://localhost:3001`
+
+**Database:** SQLite (stored in `backend/data/database.sqlite`)
+
+### Production Build
+
+To build for production:
+```bash
+npm run build
+npm run server
+```
+
+The server will serve the built frontend from the `dist` folder.
 
 ## Documentation
 
+- [Setup Guide](SETUP.md): Complete installation and configuration instructions
+- [Backend API Documentation](BACKEND_API.md): Complete REST API reference for all backend endpoints
 - [MCP Servers Documentation](MCP_SERVERS_DOCUMENTATION.md): Learn about the Model Control Protocol servers and how to use them
 
 # Dashboard Data Extension

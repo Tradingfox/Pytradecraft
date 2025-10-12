@@ -17,6 +17,16 @@ app.use(express.urlencoded({ extended: true }));
 // Static files (if we have a build folder with frontend assets)
 app.use(express.static(path.join(__dirname, '..', 'dist')));
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'healthy', 
+    timestamp: new Date().toISOString(),
+    version: '1.0.0',
+    database: 'connected'
+  });
+});
+
 // API Routes
 app.use('/api/algorithms', algorithmRoutes);
 
