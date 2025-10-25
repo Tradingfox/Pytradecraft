@@ -17,6 +17,7 @@ const SettingsView = React.lazy(() => import('./views/SettingsView'));
 const TradingView = React.lazy(() => import('./views/TradingView'));
 const MarketDataView = React.lazy(() => import('./views/MarketDataView'));
 const ChartsView = React.lazy(() => import('./views/ChartsView'));
+const SignalsView = React.lazy(() => import('./views/SignalsView'));
 const NotFoundView = React.lazy(() => import('./views/NotFoundView'));
 
 
@@ -43,6 +44,7 @@ const App: React.FC = () => {
                     <Route path="/indicators" element={<IndicatorsView />} />
                     <Route path="/trading" element={<TradingView />} />
                     <Route path="/charts" element={<ChartsView />} />
+                    <Route path="/signals" element={<SignalsView />} />
                     <Route path="/marketdata" element={<MarketDataView />} />
                     <Route path="/deployments" element={<DeploymentsView />} />
                     <Route path="/deployments/manager" element={<DeploymentsManagerView />} />
