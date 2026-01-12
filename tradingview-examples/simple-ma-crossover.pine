@@ -1,0 +1,104 @@
+//@version=5
+indicator("📊 Signal Auto - Croisement MA (Pytradecraft)", overlay=true)
+
+// ==========================================
+// PARAMÈTRES
+// ==========================================
+fastPeriod = input.int(10, "Période MA Rapide", minval=1, maxval=500)
+slowPeriod = input.int(30, "Période MA Lente", minval=1, maxval=500)
+quantity = input.int(1, "Quantité par Signal", minval=1)
+stopLossPoints = input.float(20.0, "Stop Loss (points)", minval=0)
+takeProfitPoints = input.float(40.0, "Take Profit (points)", minval=0)
+
+// ==========================================
+// CALCUL DES INDICATEURS
+// ==========================================
+fastMA = ta.sma(close, fastPeriod)
+slowMA = ta.sma(close, slowPeriod)
+
+// ==========================================
+// DÉTECTION DES SIGNAUX
+// ==========================================
+buySignal = ta.crossover(fastMA, slowMA)
+sellSignal = ta.crossunder(fastMA, slowMA)
+
+// ==========================================
+// AFFICHAGE VISUEL
+// ==========================================
+// Tracer les moyennes mobiles
+plot(fastMA, "MA Rapide", color=color.blue, linewidth=2)
+plot(slowMA, "MA Lente", color=color.red, linewidth=2)
+
+// Afficher les signaux d'achat/vente
+plotshape(buySignal, "Signal Achat", shape.triangleup, location.belowbar, color.new(color.green, 0), size=size.small, text="BUY")
+plotshape(sellSignal, "Signal Vente", shape.triangledown, location.abovebar, color.new(color.red, 0), size=size.small, text="SELL")
+
+// Coloration de fond lors d'un signal
+bgcolor(buySignal ? color.new(color.green, 90) : na)
+bgcolor(sellSignal ? color.new(color.red, 90) : na)
+
+// ==========================================
+// CALCUL DES NIVEAUX SL/TP
+// ==========================================
+var float entryPrice = na
+var float stopLoss = na
+var float takeProfit = na
+
+if buySignal
+    entryPrice := close
+    stopLoss := close - stopLossPoints
+    takeProfit := close + takeProfitPoints
+
+if sellSignal
+    entryPrice := close
+    stopLoss := close + stopLossPoints
+    takeProfit := close - takeProfitPoints
+
+// ==========================================
+// ALERTES WEBHOOK
+// ==========================================
+
+// 🔔 ALERTE D'ACHAT
+if buySignal
+    alertMessage = '{\n' +
+         '  "ticker": "{{ticker}}",\n' +
+         '  "exchange": "{{exchange}}",\n' +
+         '  "interval": "{{interval}}",\n' +
+         '  "action": "buy",\n' +
+         '  "price": ' + str.tostring(close) + ',\n' +
+         '  "quantity": ' + str.tostring(quantity) + ',\n' +
+         '  "stop_loss": ' + str.tostring(stopLoss) + ',\n' +
+         '  "take_profit": ' + str.tostring(takeProfit) + ',\n' +
+         '  "time": "{{time}}",\n' +
+         '  "comment": "MA Crossover - Achat"\n' +
+         '}'
+    alert(alertMessage, alert.freq_once_per_bar)
+
+// 🔔 ALERTE DE VENTE
+if sellSignal
+    alertMessage = '{\n' +
+         '  "ticker": "{{ticker}}",\n' +
+         '  "exchange": "{{exchange}}",\n' +
+         '  "interval": "{{interval}}",\n' +
+         '  "action": "sell",\n' +
+         '  "price": ' + str.tostring(close) + ',\n' +
+         '  "quantity": ' + str.tostring(quantity) + ',\n' +
+         '  "stop_loss": ' + str.tostring(stopLoss) + ',\n' +
+         '  "take_profit": ' + str.tostring(takeProfit) + ',\n' +
+         '  "time": "{{time}}",\n' +
+         '  "comment": "MA Crossover - Vente"\n' +
+         '}'
+    alert(alertMessage, alert.freq_once_per_bar)
+
+// ==========================================
+// NOTES D'UTILISATION
+// ==========================================
+// 1. Ajoutez cet indicateur à votre graphique TradingView
+// 2. Ajustez les paramètres (périodes MA, quantité, SL/TP)
+// 3. Créez une alerte sur cet indicateur
+// 4. Dans l'alerte :
+//    - Condition : "📊 Signal Auto - Croisement MA (Pytradecraft)"
+//    - Fréquence : "Once Per Bar Close" (recommandé)
+//    - Webhook URL : Votre URL de Pytradecraft
+//    - Message : Le message sera envoyé automatiquement
+// 5. L'alerte sera déclenchée à chaque croisement des moyennes mobiles

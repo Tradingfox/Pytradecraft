@@ -1,0 +1,177 @@
+//@version=5
+strategy("🎯 Stratégie RSI Multi-TP (Pytradecraft)", overlay=true, default_qty_type=strategy.fixed, default_qty_value=3)
+
+// ==========================================
+// PARAMÈTRES
+// ==========================================
+// RSI
+rsiPeriod = input.int(14, "Période RSI", minval=1)
+rsiOversold = input.int(30, "RSI Survente", minval=0, maxval=100)
+rsiOverbought = input.int(70, "RSI Suracheté", minval=0, maxval=100)
+
+// Gestion du risque
+stopLossPercent = input.float(2.0, "Stop Loss %", minval=0.1, step=0.1)
+positionSize = input.int(3, "Taille Position (contrats)", minval=1)
+
+// Take Profits multiples
+tp1Percent = input.float(1.5, "Take Profit 1 %", minval=0.1, step=0.1)
+tp2Percent = input.float(3.0, "Take Profit 2 %", minval=0.1, step=0.1)
+tp3Percent = input.float(5.0, "Take Profit 3 %", minval=0.1, step=0.1)
+
+// ==========================================
+// CALCUL DES INDICATEURS
+// ==========================================
+rsiValue = ta.rsi(close, rsiPeriod)
+
+// ==========================================
+// CONDITIONS DE TRADING
+// ==========================================
+// Conditions d'entrée
+buyCondition = ta.crossover(rsiValue, rsiOversold)
+sellCondition = ta.crossunder(rsiValue, rsiOverbought)
+
+// Conditions de sortie
+closeLongCondition = ta.crossunder(rsiValue, rsiOverbought)
+closeShortCondition = ta.crossover(rsiValue, rsiOversold)
+
+// ==========================================
+// AFFICHAGE VISUEL
+// ==========================================
+// RSI
+hline(rsiOverbought, "Suracheté", color=color.red, linestyle=hline.style_dashed)
+hline(rsiOversold, "Survente", color=color.green, linestyle=hline.style_dashed)
+hline(50, "Milieu", color=color.gray, linestyle=hline.style_dotted)
+plot(rsiValue, "RSI", color=color.blue, linewidth=2)
+
+// Coloration du RSI
+rsiColor = rsiValue > rsiOverbought ? color.new(color.red, 70) :
+           rsiValue < rsiOversold ? color.new(color.green, 70) : na
+bgcolor(rsiColor)
+
+// Signaux
+plotshape(buyCondition, "Signal Achat", shape.triangleup, location.bottom, color.green, size=size.small)
+plotshape(sellCondition, "Signal Vente", shape.triangledown, location.top, color.red, size=size.small)
+
+// ==========================================
+// EXÉCUTION DE LA STRATÉGIE
+// ==========================================
+if buyCondition
+    strategy.entry("Long", strategy.long, qty=positionSize)
+
+if sellCondition
+    strategy.entry("Short", strategy.short, qty=positionSize)
+
+if closeLongCondition and strategy.position_size > 0
+    strategy.close("Long")
+
+if closeShortCondition and strategy.position_size < 0
+    strategy.close("Short")
+
+// ==========================================
+// CALCUL DES NIVEAUX
+// ==========================================
+var float entryPrice = na
+var float stopLoss = na
+var float tp1 = na
+var float tp2 = na
+var float tp3 = na
+
+if strategy.position_size != 0
+    entryPrice := strategy.position_avg_price
+
+    if strategy.position_size > 0  // Long
+        stopLoss := entryPrice * (1 - stopLossPercent / 100)
+        tp1 := entryPrice * (1 + tp1Percent / 100)
+        tp2 := entryPrice * (1 + tp2Percent / 100)
+        tp3 := entryPrice * (1 + tp3Percent / 100)
+    else  // Short
+        stopLoss := entryPrice * (1 + stopLossPercent / 100)
+        tp1 := entryPrice * (1 - tp1Percent / 100)
+        tp2 := entryPrice * (1 - tp2Percent / 100)
+        tp3 := entryPrice * (1 - tp3Percent / 100)
+
+// Affichage des niveaux
+plot(strategy.position_size != 0 ? entryPrice : na, "Entrée", color=color.white, linewidth=2, style=plot.style_linebr)
+plot(strategy.position_size != 0 ? stopLoss : na, "Stop Loss", color=color.red, linewidth=2, style=plot.style_linebr)
+plot(strategy.position_size != 0 ? tp1 : na, "TP1", color=color.green, linewidth=1, style=plot.style_linebr)
+plot(strategy.position_size != 0 ? tp2 : na, "TP2", color=color.lime, linewidth=1, style=plot.style_linebr)
+plot(strategy.position_size != 0 ? tp3 : na, "TP3", color=color.aqua, linewidth=1, style=plot.style_linebr)
+
+// ==========================================
+// ALERTES WEBHOOK
+// ==========================================
+// Message JSON complet pour Pytradecraft
+alertMessage = '{\n' +
+     '  "ticker": "{{ticker}}",\n' +
+     '  "exchange": "{{exchange}}",\n' +
+     '  "interval": "{{interval}}",\n' +
+     '  "close": {{close}},\n' +
+     '  "open": {{open}},\n' +
+     '  "high": {{high}},\n' +
+     '  "low": {{low}},\n' +
+     '  "time": "{{time}}",\n' +
+     '  "strategy.order.action": "{{strategy.order.action}}",\n' +
+     '  "strategy.order.contracts": {{strategy.order.contracts}},\n' +
+     '  "strategy.order.price": {{strategy.order.price}},\n' +
+     '  "strategy.position_size": {{strategy.position_size}},\n' +
+     '  "strategy.market_position": "{{strategy.market_position}}",\n' +
+     '  "rsi": ' + str.tostring(rsiValue) + ',\n' +
+     '  "stop_loss": ' + str.tostring(stopLoss) + ',\n' +
+     '  "tp1": ' + str.tostring(tp1) + ',\n' +
+     '  "tp2": ' + str.tostring(tp2) + ',\n' +
+     '  "tp3": ' + str.tostring(tp3) + ',\n' +
+     '  "comment": "RSI Multi-TP"\n' +
+     '}'
+
+// Envoyer l'alerte sur chaque action de la stratégie
+if strategy.position_size != 0
+    alert(alertMessage, alert.freq_once_per_bar)
+
+// ==========================================
+// TABLEAU DE BORD
+// ==========================================
+var table dashboard = table.new(position.top_right, 2, 5, border_width=1)
+
+if barstate.islast
+    // En-tête
+    table.cell(dashboard, 0, 0, "Indicateur", bgcolor=color.gray, text_color=color.white)
+    table.cell(dashboard, 1, 0, "Valeur", bgcolor=color.gray, text_color=color.white)
+
+    // RSI
+    rsiColorCell = rsiValue > rsiOverbought ? color.red : rsiValue < rsiOversold ? color.green : color.yellow
+    table.cell(dashboard, 0, 1, "RSI", bgcolor=color.gray)
+    table.cell(dashboard, 1, 1, str.tostring(rsiValue, "#.##"), bgcolor=rsiColorCell)
+
+    // Position
+    posText = strategy.position_size > 0 ? "LONG" : strategy.position_size < 0 ? "SHORT" : "FLAT"
+    posColor = strategy.position_size > 0 ? color.green : strategy.position_size < 0 ? color.red : color.gray
+    table.cell(dashboard, 0, 2, "Position", bgcolor=color.gray)
+    table.cell(dashboard, 1, 2, posText, bgcolor=posColor, text_color=color.white)
+
+    // P&L
+    table.cell(dashboard, 0, 3, "P&L", bgcolor=color.gray)
+    table.cell(dashboard, 1, 3, str.tostring(strategy.netprofit, "#.##"),
+               bgcolor=strategy.netprofit >= 0 ? color.green : color.red,
+               text_color=color.white)
+
+    // Win Rate
+    winRate = strategy.wintrades / math.max(strategy.closedtrades, 1) * 100
+    table.cell(dashboard, 0, 4, "Win Rate", bgcolor=color.gray)
+    table.cell(dashboard, 1, 4, str.tostring(winRate, "#.#") + "%",
+               bgcolor=winRate >= 50 ? color.green : color.red,
+               text_color=color.white)
+
+// ==========================================
+// NOTES D'UTILISATION
+// ==========================================
+// 1. Ajoutez cette stratégie à votre graphique TradingView
+// 2. Ajustez les paramètres selon votre style de trading
+// 3. Observez les résultats dans le "Strategy Tester"
+// 4. Pour activer les alertes webhook :
+//    - Créez une alerte sur la stratégie
+//    - Condition : "🎯 Stratégie RSI Multi-TP (Pytradecraft)"
+//    - "Alert() function calls only" (important!)
+//    - Fréquence : "Once Per Bar Close"
+//    - Webhook URL : Votre URL Pytradecraft
+// 5. Les signaux seront envoyés automatiquement avec tous les détails
+//    y compris les 3 niveaux de Take Profit
